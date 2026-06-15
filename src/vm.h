@@ -2,10 +2,10 @@
 #define VM_H
 
 #include <math.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-
 #define MAX_STACK 1024
 #define MAX_PROGRAM 65536
 
@@ -48,6 +48,11 @@ typedef enum {
   OP_CMP_LE,
   OP_CMP_GT,
   OP_CMP_GE,
+  OP_JMP, // control flow
+  OP_ZJMP,
+  OP_NZJMP,
+  OP_CALL,
+  OP_RET,
   OP_HALT, // special
 } Opcode;
 
@@ -59,6 +64,11 @@ typedef struct {
 typedef struct {
   Data stack[MAX_STACK];
   int stack_pos;
+
+  size_t return_stack[MAX_STACK];
+  int rsp;
+  size_t ip;
+
   Inst *program;
   size_t program_size;
 } VM;
@@ -99,6 +109,16 @@ typedef struct {
   (Inst) { OP_CMP_GT }
 #define CMP_GE                                                                 \
   (Inst) { OP_CMP_GE }
+#define JMP(x)                                                                 \
+  (Inst) { OP_JMP, .value.i = (x) }
+#define ZJMP(x)                                                                \
+  (Inst) { OP_ZJMP, .value.i = (x) }
+#define NZJMP(x)                                                               \
+  (Inst) { OP_NZJMP, .value.i = (x) }
+#define CALL(x)                                                                \
+  (Inst) { OP_CALL, .value.i = (x) }
+#define RET                                                                    \
+  (Inst) { OP_RET }
 #define HALT                                                                   \
   (Inst) { OP_HALT, }
 
@@ -106,4 +126,5 @@ VM vm_new(Inst *program, size_t size);
 void vm_run(VM *vm);
 void vm_dump_stack(VM *vm); /* debug helper */
 const char *opcode_to_string(Opcode opcode);
+bool haveOperand(Opcode opcode);
 #endif

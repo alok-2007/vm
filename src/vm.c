@@ -39,12 +39,31 @@ const char *opcode_to_string(Opcode opcode) {
     return "CMP_GT";
   case OP_CMP_GE:
     return "CMP_GE";
+  case OP_JMP:
+    return "JMP";
+  case OP_ZJMP:
+    return "ZJMP";
+  case OP_NZJMP:
+    return "NZJMP";
+  case OP_CALL:
+    return "CALL";
+  case OP_RET:
+    return "RET";
   case OP_HALT:
     return "HALT";
   default:
     return "UNKNOWN";
   }
 }
+
+bool haveOperand(Opcode opcode) {
+  if (opcode == OP_PUSH || opcode == OP_PUSH_F || opcode == OP_INDUP ||
+      opcode == OP_INSWAP || opcode == OP_JMP || opcode == OP_ZJMP ||
+      opcode == OP_NZJMP || opcode == OP_CALL) {
+    return true;
+  }
+  return false;
+};
 
 VM vm_new(Inst *program, size_t size) {
   VM vm = {0};
@@ -83,10 +102,13 @@ static Data peek(VM *vm) {
 }
 
 void vm_run(VM *vm) {
-  for (size_t ip = 0; ip < vm->program_size; ip++) {
+  while (vm->ip < vm->program_size) {
+    printf("ip=%zu\n", vm->ip);
+    vm_dump_stack(vm);
     Data a, b;
     int64_t depth;
-    Inst inst = vm->program[ip];
+    bool cond;
+    Inst inst = vm->program[vm->ip];
     switch (inst.opcode) {
     case OP_PUSH:
       push(vm, inst.value.i);
@@ -130,19 +152,20 @@ void vm_run(VM *vm) {
       if (depth + vm->stack_pos > MAX_STACK) {
         VM_PANIC("stack overflow from INDUP");
       }
-      vm->stack[vm->stack_pos++] = vm->stack[vm->stack_pos - 1 - depth];
+      vm->stack[vm->stack_pos] = vm->stack[vm->stack_pos - 1 - depth];
+      vm->stack_pos++;
       break;
     case OP_INSWAP:
       depth = inst.value.i;
-      if (depth <= 1) {
+      if (depth <= 0) {
         VM_PANIC("invalid INSWAP depth");
       }
       if (depth > vm->stack_pos) {
         VM_PANIC("stack underflow from INSWAP");
       }
       Data top = vm->stack[vm->stack_pos - 1];
-      Data other = vm->stack[vm->stack_pos - depth];
-      vm->stack[vm->stack_pos - depth] = top;
+      Data other = vm->stack[vm->stack_pos - 1 - depth];
+      vm->stack[vm->stack_pos - 1 - depth] = top;
       vm->stack[vm->stack_pos - 1] = other;
       break;
     case OP_ADD:
@@ -295,26 +318,61 @@ void vm_run(VM *vm) {
         push(vm, a.word.f >= b.word.f);
       }
       break;
+    case OP_JMP:
+      vm->ip = inst.value.i;
+      continue;
+    case OP_ZJMP:
+      a = pop(vm);
 
+      cond = (a.type == TYPE_INT) ? a.word.i == 0 : a.word.f == 0.0;
+      if (cond) {
+        vm->ip = inst.value.i;
+        continue;
+      }
+      break;
+    case OP_NZJMP:
+      a = pop(vm);
+      cond = (a.type == TYPE_INT) ? a.word.i != 0 : a.word.f != 0.0;
+      if (cond) {
+        vm->ip = inst.value.i;
+        continue;
+      }
+      break;
+    case OP_CALL:
+      if (vm->rsp >= MAX_STACK) {
+        VM_PANIC("return stack overflow");
+      }
+      vm->return_stack[vm->rsp++] = vm->ip + 1;
+      vm->ip = inst.value.i;
+      continue;
+      break;
+    case OP_RET:
+      if (vm->rsp <= 0) {
+        VM_PANIC("return stack underflow");
+      }
+      vm->ip = vm->return_stack[--vm->rsp];
+      continue;
     case OP_HALT:
       return;
     default:
-      VM_PANIC("unknown opcode %d at ip=%zu", inst.opcode, ip);
+      VM_PANIC("unknown opcode %d at ip=%zu", inst.opcode, vm->ip);
       break;
     }
+    vm->ip++;
   }
 }
 
 void vm_dump_stack(VM *vm) {
-  printf("stack [%d]:", vm->stack_pos);
+  printf("sp=%d\n", vm->stack_pos);
+
   for (int i = 0; i < vm->stack_pos; i++) {
-    if (vm->stack[i].type == TYPE_INT) {
-      printf(" %ld", vm->stack[i].word.i);
-    } else {
-      printf(" %lf", vm->stack[i].word.f);
-    }
+    printf("[%d] ", i);
+
+    if (vm->stack[i].type == TYPE_INT)
+      printf("%ld\n", vm->stack[i].word.i);
+    else
+      printf("%f\n", vm->stack[i].word.f);
   }
-  printf("\n");
 }
 
 // int main() {
