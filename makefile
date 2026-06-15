@@ -1,5 +1,7 @@
 CC = gcc
-CFLAGS  = -Wall -Wextra -std=c11 -g
+
+CFLAGS = -Wall -Wextra -std=c11 -g
+LDFLAGS = -lm
 
 SRC = $(wildcard src/*.c)
 TESTS = $(wildcard tests/*.c)
@@ -10,14 +12,16 @@ TARGET = vm
 all: $(TARGET)
 
 $(TARGET): $(OBJ)
-	$(CC) $(OBJ) -o $(TARGET) 
+	$(CC) $(OBJ) -o $(TARGET) $(LDFLAGS)
 
-%.o : %.c
+%.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-test: $(SRC) $(TESTS)
-	$(CC) $(SRC) $(TESTS) -o test
+test:
+	$(CC) $(CFLAGS) $(SRC) $(TESTS) -o test $(LDFLAGS)
 	./test
+
 clean:
-	rm -f $(OBJ) $(TARGET)
-.PHONY: all clean 
+	rm -f $(OBJ) $(TARGET) test
+
+.PHONY: all clean test
