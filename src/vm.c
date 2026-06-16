@@ -66,6 +66,8 @@ const char *opcode_to_string(Opcode opcode) {
     return "WRITE";
   case OP_READ:
     return "READ";
+  case OP_PUSH_STR:
+    return "PUSH_STR";
   case OP_HALT:
     return "HALT";
   default:
@@ -77,7 +79,7 @@ bool haveOperand(Opcode opcode) {
   if (opcode == OP_PUSH || opcode == OP_PUSH_F || opcode == OP_INDUP ||
       opcode == OP_INSWAP || opcode == OP_JMP || opcode == OP_ZJMP ||
       opcode == OP_NZJMP || opcode == OP_CALL || opcode == OP_MOV_IMM ||
-      opcode == OP_MOV_TOP || opcode == OP_PUSH_REG) {
+      opcode == OP_MOV_TOP || opcode == OP_PUSH_REG || opcode == OP_PUSH_STR) {
     return true;
   }
   return false;
@@ -506,6 +508,22 @@ void vm_run(VM *vm) {
       vm->stack[vm->stack_pos] = vm->heap[address];
       vm->stack_pos++;
       break;
+    case OP_PUSH_STR: {
+      const char *string_literal = inst.string_literal;
+      int len = strlen(string_literal);
+      if (vm->stack_pos >= MAX_STACK) {
+        VM_PANIC("stack overflow");
+      }
+      if (vm->string_pool_pos + len + 1 > STRING_POOL_SIZE) {
+        VM_PANIC("string pool full");
+      }
+      memcpy(&vm->string_pool[vm->string_pool_pos], string_literal, len + 1);
+      int64_t string_offset = vm->string_pool_pos;
+      vm->string_pool_pos += len + 1;
+      vm->stack[vm->stack_pos++] =
+          (Data){.type = TYPE_STR, .word.i = string_offset};
+      break;
+    }
     case OP_HALT:
       return;
     default:
@@ -518,14 +536,24 @@ void vm_run(VM *vm) {
 
 void vm_dump_stack(VM *vm) {
   printf("sp=%d\n", vm->stack_pos);
-
   for (int i = 0; i < vm->stack_pos; i++) {
     printf("[%d] ", i);
-
-    if (vm->stack[i].type == TYPE_INT)
+    switch (vm->stack[i].type) {
+    case TYPE_INT:
       printf("%ld\n", vm->stack[i].word.i);
-    else
+      break;
+    case TYPE_FLOAT:
       printf("%f\n", vm->stack[i].word.f);
+      break;
+    case TYPE_PTR:
+      printf("ptr(%ld)\n", vm->stack[i].word.i);
+      break;
+    case TYPE_STR: {
+      int64_t string_offset = vm->stack[i].word.i;
+      printf("\"%s\"\n", &vm->string_pool[string_offset]);
+      break;
+    }
+    }
   }
 }
 

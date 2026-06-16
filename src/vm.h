@@ -6,10 +6,12 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #define MAX_STACK 1024
 #define MAX_PROGRAM 65536
 #define NUM_REGS 16
 #define HEAP_SIZE 4096
+#define STRING_POOL_SIZE 4096
 
 #define VM_PANIC(fmt, ...)                                                     \
   do {                                                                         \
@@ -21,6 +23,7 @@ typedef enum {
   TYPE_INT,
   TYPE_FLOAT,
   TYPE_PTR,
+  TYPE_STR,
 } DataType;
 
 typedef union {
@@ -64,12 +67,14 @@ typedef enum {
   OP_DEALLOC,
   OP_WRITE,
   OP_READ,
-  OP_HALT, // special
+  OP_PUSH_STR, // string
+  OP_HALT,     // special
 } Opcode;
 
 typedef struct {
   Opcode opcode;
   Word value;
+  const char *string_literal;
   int reg_index;
 } Inst;
 
@@ -86,6 +91,9 @@ typedef struct {
   Data heap[HEAP_SIZE];
   bool heap_used[HEAP_SIZE];
   int64_t heap_block_used[HEAP_SIZE];
+
+  char string_pool[STRING_POOL_SIZE];
+  size_t string_pool_pos;
 
   Inst *program;
   size_t program_size;
@@ -161,6 +169,8 @@ typedef struct {
   (Inst) { .opcode = OP_WRITE }
 #define READ                                                                   \
   (Inst) { .opcode = OP_READ }
+#define PUSH_STR(x)                                                            \
+  (Inst) { .opcode = OP_PUSH_STR, .string_literal = (x) }
 
 #define HALT                                                                   \
   (Inst) { .opcode = OP_HALT }

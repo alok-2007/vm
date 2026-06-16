@@ -1,7 +1,12 @@
 #include "../src/vm.h"
 #include <math.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 static int tests_run = 0;
 static int tests_passed = 0;
@@ -9,6 +14,7 @@ static int tests_passed = 0;
 #define EXPECT_INT(x) ((Data){.type = TYPE_INT, .word.i = (x)})
 #define EXPECT_FLOAT(x) ((Data){.type = TYPE_FLOAT, .word.f = (x)})
 #define EXPECT_PTR(x) ((Data){.type = TYPE_PTR, .word.i = (x)})
+#define EXPECT_STRING(x) ((Data){.type = TYPE_STR, .word.i = (x)})
 
 /* expect_crash: when true, the test is expected to call VM_PANIC (exit(1)).
  * We can't catch exit() in-process without fork(), so these are marked
@@ -20,9 +26,9 @@ typedef struct {
 
   Data expected;
   int expected_sp;
-  int check_value; /* 0 = only check sp (used for zjmp-taken style cases) */
-} TestCase;
 
+  bool needIsolation;
+} TestCase;
 /* ───────────────────────── Original Programs ───────────────────────── */
 
 Inst prog_push[] = {PUSH(42), HALT};
@@ -167,171 +173,212 @@ Inst prog_two_blocks[] = {
     HALT  // 15  top should be 11, sp==2
 };
 
-/* ── intentionally-crashing programs ──
- * These call VM_PANIC -> exit(1). Running them in the same process would
- * kill the test binary, so they are NOT included in the automatic table.
- * They're kept here as documentation / for manual one-off testing:
- *
- *   Inst prog_double_dealloc[] = {
- *       PUSH(4), ALLOC, DUP, DEALLOC, DEALLOC, HALT
- *   };   // expect: VM_PANIC "you are free unallocated address from dealloc"
- *
- *   Inst prog_invalid_read[] = { PUSH(123456), READ, HALT };
- *       // expect: VM_PANIC (out of heap bounds, or unallocated)
- *
- *   Inst prog_invalid_write[] = { PUSH(123456), PUSH(42), WRITE, HALT };
- *       // expect: VM_PANIC
- *
- *   Inst prog_oob_write[] = {
- *       PUSH(4), ALLOC,        // [addr], block of size 4
- *       PUSH(99),              // [addr, 99]
- *       SWAP,                  // [99, addr]   -- still a valid address, NOT
- * oob by itself WRITE, HALT
- *   };
- *   To actually test "out of bounds within a block" you'd need pointer
- *   arithmetic (addr+5) which we deliberately do NOT support yet (Phase 6
- *   decision: absolute addressing only, no TYPE_PTR + TYPE_INT). So true
- *   OOB-within-block isn't expressible in bytecode yet -- only "address
- *   that was never allocated" is testable, which is what prog_invalid_read/
- *   prog_invalid_write above already cover.
- *
- * To actually test these, run each individually via fork()+waitpid() and
- * assert the child exited with status 1, or run them as separate manual
- * `make crash-test` style binaries. Not wired into this table.
- */
+/* alloc/dealloc panic tests */
+
+Inst prog_invalid_reg[] = {MOV_IMM(16, 2), HALT};
+
+Inst prog_double_free[] = {PUSH(4), ALLOC, DUP, DEALLOC, DEALLOC, HALT};
+
+Inst prog_read_invalid[] = {PUSH(123456), READ, HALT};
+
+Inst prog_write_invalid[] = {PUSH(123456), PUSH(42), WRITE, HALT};
+
+Inst prog_alloc_negative[] = {PUSH(-1), ALLOC, HALT};
+
+Inst prog_alloc_zero[] = {PUSH(0), ALLOC, HALT};
+
+Inst prog_push_str_hi[] = {PUSH_STR("hi"), HALT};
+
+Inst prog_push_str_two[] = {PUSH_STR("hello"), PUSH_STR("world"), HALT};
+
+Inst prog_push_str_empty[] = {PUSH_STR(""), HALT};
 
 /* ────────────────────────── Test Table ─────────────────────────────── */
 
 TestCase tests[] = {
     {"push", prog_push, sizeof(prog_push) / sizeof(prog_push[0]),
-     EXPECT_INT(42), 1, 1},
+     EXPECT_INT(42), 1, false},
 
     {"add", prog_add, sizeof(prog_add) / sizeof(prog_add[0]), EXPECT_INT(30), 1,
-     1},
+     false},
 
     {"sub", prog_sub, sizeof(prog_sub) / sizeof(prog_sub[0]), EXPECT_INT(7), 1,
-     1},
+     false},
 
     {"mul", prog_mul, sizeof(prog_mul) / sizeof(prog_mul[0]), EXPECT_INT(42), 1,
-     1},
+     false},
 
     {"div", prog_div, sizeof(prog_div) / sizeof(prog_div[0]), EXPECT_INT(5), 1,
-     1},
+     false},
 
     {"mod", prog_mod, sizeof(prog_mod) / sizeof(prog_mod[0]), EXPECT_INT(1), 1,
-     1},
+     false},
 
     {"pop", prog_pop, sizeof(prog_pop) / sizeof(prog_pop[0]), EXPECT_INT(2), 2,
-     1},
+     false},
 
     {"chained", prog_chain, sizeof(prog_chain) / sizeof(prog_chain[0]),
-     EXPECT_INT(49), 1, 1},
+     EXPECT_INT(49), 1, false},
 
     {"negative add", prog_neg_add,
-     sizeof(prog_neg_add) / sizeof(prog_neg_add[0]), EXPECT_INT(-2), 1, 1},
+     sizeof(prog_neg_add) / sizeof(prog_neg_add[0]), EXPECT_INT(-2), 1, false},
 
     {"negative sub", prog_neg_sub,
-     sizeof(prog_neg_sub) / sizeof(prog_neg_sub[0]), EXPECT_INT(-7), 1, 1},
+     sizeof(prog_neg_sub) / sizeof(prog_neg_sub[0]), EXPECT_INT(-7), 1, false},
 
     {"int add", prog_int_add, sizeof(prog_int_add) / sizeof(prog_int_add[0]),
-     EXPECT_INT(13), 1, 1},
+     EXPECT_INT(13), 1, false},
 
     {"float add", prog_float_add,
      sizeof(prog_float_add) / sizeof(prog_float_add[0]), EXPECT_FLOAT(4.0), 1,
-     1},
+     false},
 
     {"int mul", prog_int_mul, sizeof(prog_int_mul) / sizeof(prog_int_mul[0]),
-     EXPECT_INT(42), 1, 1},
+     EXPECT_INT(42), 1, false},
 
     {"float div", prog_float_div,
      sizeof(prog_float_div) / sizeof(prog_float_div[0]), EXPECT_FLOAT(1.5), 1,
-     1},
+     false},
 
     {"int mod", prog_int_mod, sizeof(prog_int_mod) / sizeof(prog_int_mod[0]),
-     EXPECT_INT(1), 1, 1},
+     EXPECT_INT(1), 1, false},
 
     {"dup", prog_dup, sizeof(prog_dup) / sizeof(prog_dup[0]), EXPECT_INT(5), 2,
-     1},
+     false},
 
     {"swap", prog_swap, sizeof(prog_swap) / sizeof(prog_swap[0]), EXPECT_INT(1),
-     2, 1},
+     2, false},
 
     {"indup", prog_indup, sizeof(prog_indup) / sizeof(prog_indup[0]),
-     EXPECT_INT(2), 4, 1},
+     EXPECT_INT(2), 4, false},
 
     {"cmp eq true", prog_cmp_eq_true,
      sizeof(prog_cmp_eq_true) / sizeof(prog_cmp_eq_true[0]), EXPECT_INT(1), 1,
-     1},
+     false},
 
     {"cmp eq false", prog_cmp_eq_false,
      sizeof(prog_cmp_eq_false) / sizeof(prog_cmp_eq_false[0]), EXPECT_INT(0), 1,
-     1},
+     false},
 
     {"cmp lt true", prog_cmp_lt_true,
      sizeof(prog_cmp_lt_true) / sizeof(prog_cmp_lt_true[0]), EXPECT_INT(1), 1,
-     1},
+     false},
 
     {"cmp gt false", prog_cmp_gt_false,
      sizeof(prog_cmp_gt_false) / sizeof(prog_cmp_gt_false[0]), EXPECT_INT(0), 1,
-     1},
+     false},
 
     {"cmp eq float", prog_cmp_eq_float,
      sizeof(prog_cmp_eq_float) / sizeof(prog_cmp_eq_float[0]), EXPECT_INT(1), 1,
-     1},
+     false},
 
     {"jmp", prog_jmp, sizeof(prog_jmp) / sizeof(prog_jmp[0]), EXPECT_INT(1), 1,
-     1},
+     false},
 
     {"zjmp taken", prog_zjmp_taken,
      sizeof(prog_zjmp_taken) / sizeof(prog_zjmp_taken[0]), EXPECT_INT(0), 0,
-     0}, /* check_value=0: only sp matters, nothing was pushed */
+     false}, /* check_value=0: only sp matters, nothing was pushed */
 
     {"zjmp not taken", prog_zjmp_not_taken,
      sizeof(prog_zjmp_not_taken) / sizeof(prog_zjmp_not_taken[0]),
-     EXPECT_INT(99), 1, 1},
+     EXPECT_INT(99), 1, false},
 
     {"square call", prog_square, sizeof(prog_square) / sizeof(prog_square[0]),
-     EXPECT_INT(16), 1, 1},
+     EXPECT_INT(16), 1, false},
 
     {"fib 5", prog_fib5, sizeof(prog_fib5) / sizeof(prog_fib5[0]),
-     EXPECT_INT(3), 5, 1},
+     EXPECT_INT(3), 5, false},
 
     {"mov imm", prog_mov_imm, sizeof(prog_mov_imm) / sizeof(prog_mov_imm[0]),
-     EXPECT_INT(42), 1, 1},
+     EXPECT_INT(42), 1, false},
 
     {"mov imm float", prog_mov_imm_f,
      sizeof(prog_mov_imm_f) / sizeof(prog_mov_imm_f[0]), EXPECT_FLOAT(3.5), 1,
-     1},
+     false},
 
     {"mov top", prog_mov_top, sizeof(prog_mov_top) / sizeof(prog_mov_top[0]),
-     EXPECT_INT(10), 2, 1},
+     EXPECT_INT(10), 2, false},
 
     {"register add", prog_reg_add,
-     sizeof(prog_reg_add) / sizeof(prog_reg_add[0]), EXPECT_INT(3), 1, 1},
+     sizeof(prog_reg_add) / sizeof(prog_reg_add[0]), EXPECT_INT(3), 1, false},
 
     {"register index 5", prog_reg_index_5,
      sizeof(prog_reg_index_5) / sizeof(prog_reg_index_5[0]), EXPECT_INT(99), 1,
-     1},
+     false},
 
     /* ── memory tests ── */
 
     {"alloc", prog_alloc, sizeof(prog_alloc) / sizeof(prog_alloc[0]),
      EXPECT_PTR(0), /* expect block-start index 0 on a fresh heap */
-     1, 1},
+     1, false},
 
     {"write then read", prog_write_read,
      sizeof(prog_write_read) / sizeof(prog_write_read[0]), EXPECT_INT(42), 1,
-     1},
+     false},
 
     {"alloc then dealloc", prog_alloc_dealloc,
      sizeof(prog_alloc_dealloc) / sizeof(prog_alloc_dealloc[0]),
      EXPECT_INT(0), /* ignored, check_value=0 */
-     0, 0},
+     0, false},
 
     {"two independent blocks", prog_two_blocks,
      sizeof(prog_two_blocks) / sizeof(prog_two_blocks[0]), EXPECT_INT(11), 2,
-     1},
+     false},
+    {"invalid register", prog_invalid_reg,
+     sizeof(prog_invalid_reg) / sizeof(prog_invalid_reg[0]), EXPECT_INT(0), 0,
+     true},
+
+    {"double dealloc", prog_double_free,
+     sizeof(prog_double_free) / sizeof(prog_double_free[0]), EXPECT_INT(0), 0,
+     true},
+
+    {"read with non-pointer type", prog_read_invalid,
+     sizeof(prog_read_invalid) / sizeof(prog_read_invalid[0]), EXPECT_INT(0), 0,
+     true},
+
+    {"write with non-pointer type", prog_write_invalid,
+     sizeof(prog_write_invalid) / sizeof(prog_write_invalid[0]), EXPECT_INT(0),
+     0, true},
+
+    {"alloc negative size", prog_alloc_negative,
+     sizeof(prog_alloc_negative) / sizeof(prog_alloc_negative[0]),
+     EXPECT_INT(0), 0, true},
+
+    {"alloc zero size", prog_alloc_zero,
+     sizeof(prog_alloc_zero) / sizeof(prog_alloc_zero[0]), EXPECT_INT(0), 0,
+     true},
+    {"push str hi", prog_push_str_hi,
+     sizeof(prog_push_str_hi) / sizeof(prog_push_str_hi[0]),
+     EXPECT_STRING(0), // string offset 0
+     1, false},
+
+    {"push str two", prog_push_str_two,
+     sizeof(prog_push_str_two) / sizeof(prog_push_str_two[0]),
+     EXPECT_STRING(6), // offset of "world" if "hello\0" stored first
+     2, false},
+
+    {"push str empty", prog_push_str_empty,
+     sizeof(prog_push_str_empty) / sizeof(prog_push_str_empty[0]),
+     EXPECT_STRING(0), // offset 0
+     1, false},
 };
+
+// run_expect_panic --- function to fun program that can crash
+static bool run_expect_panic(Inst *program, size_t size) {
+  pid_t pid = fork();
+  if (pid == 0) {
+    VM vm = vm_new(program, size);
+    vm_run(&vm);
+    exit(0);
+  } else {
+    int status;
+    waitpid(pid, &status, 0);
+    bool crashed = WIFEXITED(status) && WEXITSTATUS(status) == 1;
+    printf("%s\n",
+           crashed ? "PASS (panicked as expected)" : "FAIL (did not panic)");
+    return crashed;
+  }
+}
 
 /* ───────────────────────────── main ─────────────────────────────────── */
 
@@ -378,42 +425,53 @@ int main(void) {
         }
       }
     }
-
-    VM vm = vm_new(t->program, t->size);
-    vm_run(&vm);
-
     int passed = 1;
-
-    /* always check stack pointer first */
-    if (vm.stack_pos != t->expected_sp) {
-      printf("FAIL: sp mismatch (expected %d, got %d)\n", t->expected_sp,
-             vm.stack_pos);
-      passed = 0;
-    }
-
-    if (passed && t->check_value) {
-      if (vm.stack_pos <= 0) {
-        printf("FAIL: expected a value on stack but sp=%d\n", vm.stack_pos);
+    if (t->needIsolation) {
+      bool result = run_expect_panic(t->program, t->size);
+      if (!result) {
         passed = 0;
-      } else {
-        Data got = vm.stack[vm.stack_pos - 1];
+      }
+    } else {
+      VM vm = vm_new(t->program, t->size);
+      vm_run(&vm);
+      vm_dump_stack(&vm);
+      /* always check stack pointer first */
+      if (vm.stack_pos != t->expected_sp) {
+        printf("FAIL: sp mismatch (expected %d, got %d)\n", t->expected_sp,
+               vm.stack_pos);
+        passed = 0;
+      }
 
-        if (got.type != t->expected.type) {
-          printf("FAIL: type mismatch (expected type %d, got type %d)\n",
-                 t->expected.type, got.type);
+      if (passed && vm.stack_pos > 0) {
+        if (vm.stack_pos <= 0) {
+          printf("FAIL: expected a value on stack but sp=%d\n", vm.stack_pos);
           passed = 0;
-        } else if (got.type == TYPE_INT) {
-          printf("expected: %ld\n", t->expected.word.i);
-          printf("received: %ld\n", got.word.i);
-          passed = (got.word.i == t->expected.word.i);
-        } else if (got.type == TYPE_FLOAT) {
-          printf("expected: %.6f\n", t->expected.word.f);
-          printf("received: %.6f\n", got.word.f);
-          passed = fabs(got.word.f - t->expected.word.f) < 1e-9;
-        } else if (got.type == TYPE_PTR) {
-          printf("expected ptr: %ld\n", t->expected.word.i);
-          printf("received ptr: %ld\n", got.word.i);
-          passed = (got.word.i == t->expected.word.i);
+        } else {
+          Data got = vm.stack[vm.stack_pos - 1];
+
+          if (got.type != t->expected.type) {
+            printf("FAIL: type mismatch (expected type %d, got type %d)\n",
+                   t->expected.type, got.type);
+            passed = 0;
+          } else if (got.type == TYPE_INT) {
+            printf("expected: %ld\n", t->expected.word.i);
+            printf("received: %ld\n", got.word.i);
+            passed = (got.word.i == t->expected.word.i);
+          } else if (got.type == TYPE_FLOAT) {
+            printf("expected: %.6f\n", t->expected.word.f);
+            printf("received: %.6f\n", got.word.f);
+            passed = fabs(got.word.f - t->expected.word.f) < 1e-9;
+          } else if (got.type == TYPE_PTR) {
+            printf("expected ptr: %ld\n", t->expected.word.i);
+            printf("received ptr: %ld\n", got.word.i);
+            passed = (got.word.i == t->expected.word.i);
+          } else if (got.type == TYPE_STR) {
+            const char *got_str = &vm.string_pool[got.word.i];
+            const char *expected_str = &vm.string_pool[t->expected.word.i];
+            printf("expected: \"%s\"\n", expected_str);
+            printf("received: \"%s\"\n", got_str);
+            passed = (strcmp(got_str, expected_str) == 0);
+          }
         }
       }
     }
