@@ -2,8 +2,8 @@
 *.o
 
 # Executables
-vm
-test
+./vm
+./test
 
 # Other build files
 *.out

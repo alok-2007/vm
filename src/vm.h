@@ -8,6 +8,8 @@
 #include <stdlib.h>
 #define MAX_STACK 1024
 #define MAX_PROGRAM 65536
+#define NUM_REGS 16
+#define HEAP_SIZE 4096
 
 #define VM_PANIC(fmt, ...)                                                     \
   do {                                                                         \
@@ -18,6 +20,7 @@
 typedef enum {
   TYPE_INT,
   TYPE_FLOAT,
+  TYPE_PTR,
 } DataType;
 
 typedef union {
@@ -53,12 +56,21 @@ typedef enum {
   OP_NZJMP,
   OP_CALL,
   OP_RET,
+  OP_MOV_IMM, // registers
+  OP_MOV_IMM_F,
+  OP_MOV_TOP,
+  OP_PUSH_REG,
+  OP_ALLOC, // memory
+  OP_DEALLOC,
+  OP_WRITE,
+  OP_READ,
   OP_HALT, // special
 } Opcode;
 
 typedef struct {
   Opcode opcode;
   Word value;
+  int reg_index;
 } Inst;
 
 typedef struct {
@@ -69,58 +81,89 @@ typedef struct {
   int rsp;
   size_t ip;
 
+  Data registers[NUM_REGS];
+
+  Data heap[HEAP_SIZE];
+  bool heap_used[HEAP_SIZE];
+  int64_t heap_block_used[HEAP_SIZE];
+
   Inst *program;
   size_t program_size;
 } VM;
 
 #define PUSH(x)                                                                \
-  (Inst) { OP_PUSH, .value.i = (x) }
+  (Inst) { .opcode = OP_PUSH, .value.i = (x) }
 #define PUSH_F(x)                                                              \
-  (Inst) { OP_PUSH_F, .value.f = (x) }
+  (Inst) { .opcode = OP_PUSH_F, .value.f = (x) }
+
 #define POP                                                                    \
-  (Inst) { OP_POP, }
+  (Inst) { .opcode = OP_POP }
 #define DUP                                                                    \
-  (Inst) { OP_DUP }
+  (Inst) { .opcode = OP_DUP }
 #define SWAP                                                                   \
-  (Inst) { OP_SWAP }
+  (Inst) { .opcode = OP_SWAP }
+
 #define INDUP(x)                                                               \
-  (Inst) { OP_INDUP, .value.i = (x) }
+  (Inst) { .opcode = OP_INDUP, .value.i = (x) }
 #define INSWAP(x)                                                              \
-  (Inst) { OP_INSWAP, .value.i = (x) }
+  (Inst) { .opcode = OP_INSWAP, .value.i = (x) }
+
 #define ADD                                                                    \
-  (Inst) { OP_ADD, }
+  (Inst) { .opcode = OP_ADD }
 #define SUB                                                                    \
-  (Inst) { OP_SUB, }
+  (Inst) { .opcode = OP_SUB }
 #define MUL                                                                    \
-  (Inst) { OP_MUL, }
+  (Inst) { .opcode = OP_MUL }
 #define DIV                                                                    \
-  (Inst) { OP_DIV, }
+  (Inst) { .opcode = OP_DIV }
 #define MOD                                                                    \
-  (Inst) { OP_MOD, }
+  (Inst) { .opcode = OP_MOD }
+
 #define CMP_EQ                                                                 \
-  (Inst) { OP_CMP_EQ }
+  (Inst) { .opcode = OP_CMP_EQ }
 #define CMP_NE                                                                 \
-  (Inst) { OP_CMP_NE }
+  (Inst) { .opcode = OP_CMP_NE }
 #define CMP_LT                                                                 \
-  (Inst) { OP_CMP_LT }
+  (Inst) { .opcode = OP_CMP_LT }
 #define CMP_LE                                                                 \
-  (Inst) { OP_CMP_LE }
+  (Inst) { .opcode = OP_CMP_LE }
 #define CMP_GT                                                                 \
-  (Inst) { OP_CMP_GT }
+  (Inst) { .opcode = OP_CMP_GT }
 #define CMP_GE                                                                 \
-  (Inst) { OP_CMP_GE }
+  (Inst) { .opcode = OP_CMP_GE }
+
 #define JMP(x)                                                                 \
-  (Inst) { OP_JMP, .value.i = (x) }
+  (Inst) { .opcode = OP_JMP, .value.i = (x) }
 #define ZJMP(x)                                                                \
-  (Inst) { OP_ZJMP, .value.i = (x) }
+  (Inst) { .opcode = OP_ZJMP, .value.i = (x) }
 #define NZJMP(x)                                                               \
-  (Inst) { OP_NZJMP, .value.i = (x) }
+  (Inst) { .opcode = OP_NZJMP, .value.i = (x) }
+
 #define CALL(x)                                                                \
-  (Inst) { OP_CALL, .value.i = (x) }
+  (Inst) { .opcode = OP_CALL, .value.i = (x) }
 #define RET                                                                    \
-  (Inst) { OP_RET }
+  (Inst) { .opcode = OP_RET }
+
+#define MOV_IMM(r, v)                                                          \
+  (Inst) { .opcode = OP_MOV_IMM, .value.i = (v), .reg_index = (r) }
+#define MOV_IMM_F(r, v)                                                        \
+  (Inst) { .opcode = OP_MOV_IMM_F, .value.f = (v), .reg_index = (r) }
+#define MOV_TOP(r)                                                             \
+  (Inst) { .opcode = OP_MOV_TOP, .reg_index = (r) }
+#define PUSH_REG(r)                                                            \
+  (Inst) { .opcode = OP_PUSH_REG, .reg_index = (r) }
+
+#define ALLOC                                                                  \
+  (Inst) { .opcode = OP_ALLOC }
+#define DEALLOC                                                                \
+  (Inst) { .opcode = OP_DEALLOC }
+#define WRITE                                                                  \
+  (Inst) { .opcode = OP_WRITE }
+#define READ                                                                   \
+  (Inst) { .opcode = OP_READ }
+
 #define HALT                                                                   \
-  (Inst) { OP_HALT, }
+  (Inst) { .opcode = OP_HALT }
 
 VM vm_new(Inst *program, size_t size);
 void vm_run(VM *vm);
