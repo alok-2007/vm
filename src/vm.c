@@ -1,6 +1,7 @@
 #include "vm.h"
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 
 const char *opcode_to_string(Opcode opcode) {
   switch (opcode) {
@@ -78,6 +79,8 @@ const char *opcode_to_string(Opcode opcode) {
     return "TOI";
   case OP_TOF:
     return "TOF";
+  case OP_NATIVE:
+    return "NATIVE";
   case OP_HALT:
     return "HALT";
   default:
@@ -89,7 +92,8 @@ bool haveOperand(Opcode opcode) {
   if (opcode == OP_PUSH || opcode == OP_PUSH_F || opcode == OP_INDUP ||
       opcode == OP_INSWAP || opcode == OP_JMP || opcode == OP_ZJMP ||
       opcode == OP_NZJMP || opcode == OP_CALL || opcode == OP_MOV_IMM ||
-      opcode == OP_MOV_TOP || opcode == OP_PUSH_REG || opcode == OP_PUSH_STR) {
+      opcode == OP_MOV_TOP || opcode == OP_PUSH_REG || opcode == OP_PUSH_STR ||
+      opcode == OP_NATIVE) {
     return true;
   }
   return false;
@@ -597,13 +601,51 @@ void vm_run(VM *vm) {
       break;
     case OP_TOF:
       a = pop(vm);
-      printf("i came\n");
       if (a.type == TYPE_STR || a.type == TYPE_PTR) {
         VM_PANIC("type mismatch from TOF");
       } else if (a.type == TYPE_INT) {
         push_f(vm, (double)a.word.i);
       } else {
         push_f(vm, a.word.f);
+      }
+      break;
+    case OP_NATIVE:
+      if (inst.nativeEntry == PRINT_INT) {
+        a = pop(vm);
+        if (a.type != TYPE_INT) {
+          VM_PANIC("from op_native type mismatch");
+        }
+        printf("%ld\n", a.word.i);
+      } else if (inst.nativeEntry == PRINT_FLOAT) {
+        a = pop(vm);
+        if (a.type != TYPE_FLOAT) {
+          VM_PANIC("from op_native type mismatch");
+        }
+        printf("%.7f\n", a.word.f);
+      } else if (inst.nativeEntry == PRINT_CHAR) {
+        a = pop(vm);
+        if (a.type != TYPE_INT) {
+          VM_PANIC("from op_native type mismatch");
+        }
+        if (a.word.i < 0 || a.word.i > 255) {
+          VM_PANIC("from native print char out of bound");
+        }
+        putchar(a.word.i);
+      } else if (inst.nativeEntry == PRINT_STR) {
+        a = pop(vm);
+        if (a.type != TYPE_STR) {
+          VM_PANIC("from op_native type mismatch");
+        }
+        const char *str = &vm->string_pool[a.word.i];
+        printf("%s\n", str);
+      } else if (inst.nativeEntry == PRINTLN) {
+        printf("\n");
+      } else if (inst.nativeEntry == EXIT_VM) {
+        a = pop(vm);
+        if (a.type != TYPE_INT) {
+          VM_PANIC("from op_native exit type mismatch");
+        }
+        exit(a.word.i);
       }
       break;
     case OP_HALT:

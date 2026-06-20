@@ -54,3 +54,8 @@ toi_int_pass-through TYPE_INT 5 1
 tof_float_pass-through TYPE_FLOAT 5.0 1
 toi_float_to_int TYPE_INT 9 1
 tof_int_to_float TYPE_FLOAT 9.0 1
+print_int TYPE_STDOUT "42\n"
+print_float TYPE_STDOUT "4.2400000\n"
+print_char TYPE_STDOUT "B"
+print_str TYPE_STDOUT "hello world!\n"
+exit_vm EXIT 0

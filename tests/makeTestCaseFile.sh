@@ -360,6 +360,30 @@ push 9
 tof
 halt
 E
+cat << 'E' > print_int.vasm
+push 42
+native print_int
+halt
+E
+cat << 'E' > print_float.vasm
+push_f 4.24
+native print_float
+halt
+E
+cat << 'E' > print_char.vasm
+push 66
+native print_char
+halt
+E
+cat << 'E' > print_str.vasm
+push_str "hello world!"
+native print_str
+halt
+E
+cat << 'E' > exit_vm.vasm
+push 0
+native exit_vm
+E
 rm generate.sh
 EOF
 bash generate.sh

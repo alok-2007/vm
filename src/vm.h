@@ -73,12 +73,23 @@ typedef enum {
   OP_ITOC,
   OP_TOI,
   OP_TOF,
-  OP_HALT, // special
+  OP_NATIVE, // native
+  OP_HALT,   // special
 } Opcode;
+
+typedef enum {
+  PRINT_INT,
+  PRINT_FLOAT,
+  PRINT_CHAR,
+  PRINT_STR,
+  PRINTLN,
+  EXIT_VM,
+} NativeFunction;
 
 typedef struct {
   Opcode opcode;
   Word value;
+  NativeFunction nativeEntry;
   const char *string_literal;
   int reg_index;
 } Inst;
@@ -187,6 +198,8 @@ typedef struct {
   (Inst) { .opcode = OP_TOI }
 #define TOF                                                                    \
   (Inst) { .opcode = OP_TOF }
+
+#define NATIVE(t) (Inst){.opcode = OP_NATIVE, .nativeEntry = (t)};
 
 #define HALT                                                                   \
   (Inst) { .opcode = OP_HALT }

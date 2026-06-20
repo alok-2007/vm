@@ -101,7 +101,7 @@ TokenList lex(const char *src) {
     } else if (c == '\"') {
       i++;
       int start = i;
-      while (i < len && src[i] != '\n' && src[i] != ' ' && src[i] != '\"') {
+      while (i < len && src[i] != '\n' && src[i] != '\"') {
         i++;
       }
       int stringLen = i - start;
@@ -109,9 +109,7 @@ TokenList lex(const char *src) {
       strncpy(text, src + start, stringLen);
       text[stringLen] = '\0';
       if (src[i] != '\"') {
-        i++;
-        Token tok = {.type = TOK_IDENT, .text = text, .line = line};
-        token_list_push(&list, tok);
+        VM_PANIC("Lexical Error: Unterminated string literal at line %d", line);
       } else {
         i++;
         Token tok = {.type = TOK_STRING, .str_val = text, .line = line};
@@ -337,6 +335,35 @@ Inst *parse(TokenList list, size_t *out_count) {
     } else if (strcmp(items[i].text, "halt") == 0) {
       pro[proLen++] = (Inst){.opcode = OP_HALT};
       i++;
+    } else if (strcmp(items[i].text, "native") == 0) {
+      i++;
+
+      if (!(i < size && items[i].type == TOK_IDENT)) {
+        VM_PANIC("from parser syntax error line %d: 'native' expects a "
+                 "function name",
+                 items[i - 1].line);
+      }
+      if (strcmp(items[i].text, "print_int") == 0) {
+        pro[proLen++] = (Inst){.opcode = OP_NATIVE, .nativeEntry = PRINT_INT};
+        i++;
+      } else if (strcmp(items[i].text, "print_float") == 0) {
+        pro[proLen++] = (Inst){.opcode = OP_NATIVE, .nativeEntry = PRINT_FLOAT};
+        i++;
+      } else if (strcmp(items[i].text, "print_char") == 0) {
+        pro[proLen++] = (Inst){.opcode = OP_NATIVE, .nativeEntry = PRINT_CHAR};
+        i++;
+      } else if (strcmp(items[i].text, "print_str") == 0) {
+        pro[proLen++] = (Inst){.opcode = OP_NATIVE, .nativeEntry = PRINT_STR};
+        i++;
+      } else if (strcmp(items[i].text, "println") == 0) {
+        pro[proLen++] = (Inst){.opcode = OP_NATIVE, .nativeEntry = PRINTLN};
+        i++;
+      } else if (strcmp(items[i].text, "exit_vm") == 0) {
+        pro[proLen++] = (Inst){.opcode = OP_NATIVE, .nativeEntry = EXIT_VM};
+        i++;
+      } else {
+        VM_PANIC("unknown native function from parser");
+      }
     } else {
       VM_PANIC("from parser unknown keyword");
     }

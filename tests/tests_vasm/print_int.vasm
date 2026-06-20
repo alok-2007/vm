@@ -1,0 +1,3 @@
+push 42
+native print_int
+halt

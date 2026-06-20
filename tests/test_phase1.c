@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200809L
 #include "../src/vasm.h"
 #include "../src/vm.h"
 #include "hashmap.h"
@@ -21,11 +22,16 @@ typedef struct {
   const char *name;
   Data data;
   bool willPanic;
+  bool isStdOut;
+  bool isExit;
+  int exitCode;
+  const char *stdOut;
   int expected_sp;
 } Expected_Result;
 
 // run_expect_panic --- function to run a program that can crash
-static bool run_expect_panic(Inst *program, size_t size) {
+static bool run_expect_panic(Inst *program, size_t size,
+                             Expected_Result *result) {
   pid_t pid = fork();
   if (pid == 0) {
     VM vm = vm_new(program, size);
@@ -33,8 +39,13 @@ static bool run_expect_panic(Inst *program, size_t size) {
     exit(0);
   } else {
     int status;
+    bool crashed;
     waitpid(pid, &status, 0);
-    bool crashed = WIFEXITED(status) && WEXITSTATUS(status) == 1;
+    if (result->isExit) {
+      crashed = (status == result->exitCode);
+    } else {
+      crashed = WIFEXITED(status) && WEXITSTATUS(status) == 1;
+    }
     printf("%s\n",
            crashed ? "PASS (panicked as expected)" : "FAIL (did not panic)");
     return crashed;
@@ -52,7 +63,10 @@ void buildExpectedHashmap(HashMap *map, const char *src) {
 
     Expected_Result *newResult = malloc(sizeof(*newResult));
     newResult->willPanic = false;
+    newResult->isStdOut = false; // CRITICAL: Explicitly initialize booleans
+    newResult->isExit = false;   // CRITICAL: Explicitly initialize booleans
     newResult->expected_sp = 0;
+    newResult->stdOut = NULL;
     memset(&newResult->data, 0, sizeof(Data));
 
     char buffer[1024];
@@ -89,13 +103,52 @@ void buildExpectedHashmap(HashMap *map, const char *src) {
       newResult->data.type = TYPE_STR;
     } else if (strcmp(buffer, "PANIC") == 0) {
       newResult->willPanic = true;
+    } else if (strcmp(buffer, "TYPE_STDOUT") == 0) {
+      newResult->isStdOut = true;
+      while (src[i] == ' ')
+        i++;
+      if (src[i] != '\"') {
+        VM_PANIC("unsupported stdout format");
+      }
+      i++; // Skip opening quote
+      bufPtr = 0;
+
+      // UNESCAPE LOOP: Process literal \n markers into real newline bytes
+      while (src[i] != '\"' && src[i] != '\0') {
+        if (src[i] == '\\' && src[i + 1] == 'n') {
+          buffer[bufPtr++] = '\n';
+          i += 2;
+        } else {
+          buffer[bufPtr++] = src[i++];
+        }
+      }
+      if (src[i] != '\"') {
+        VM_PANIC("unsupported stdout format");
+      }
+      i++; // Skip closing quote
+      buffer[bufPtr] = '\0';
+      newResult->stdOut = mystrdup(buffer);
+
+    } else if (strcmp(buffer, "EXIT") == 0) {
+      newResult->isExit = true;
+      while (src[i] == ' ')
+        i++;
+      bufPtr = 0;
+      while (src[i] != '\0' && src[i] != ' ' && src[i] != '\n') {
+        buffer[bufPtr++] = src[i++];
+      }
+      buffer[bufPtr] = '\0';
+      if (!isInt(buffer)) {
+        VM_PANIC("unsupported exit code format");
+      }
+      newResult->exitCode = atoi(buffer);
     } else {
       VM_PANIC("unsupported type from hashmap loader: %s", buffer);
     }
 
     // Short circuit the line evaluation loop if it is an expected panic
     // condition
-    if (newResult->willPanic) {
+    if (newResult->willPanic || newResult->isStdOut || newResult->isExit) {
       while (src[i] != '\0' && src[i] != '\n') {
         i++;
       }
@@ -167,7 +220,6 @@ int main(int argc, char *argv[]) {
       continue;
     }
     const char *name = entry->d_name;
-    printf("filename : %s\n", name);
     printf("\n=== TEST: %s ===\n", name);
 
     Expected_Result *result = hashmap_get(map, name);
@@ -192,46 +244,70 @@ int main(int argc, char *argv[]) {
     }
 
     bool passed = true;
-    if (result->willPanic) {
-      bool status = run_expect_panic(program, program_size);
+    if (result->willPanic || result->isExit) {
+      bool status = run_expect_panic(program, program_size, result);
       if (!status) {
         passed = false;
       }
     } else {
-      VM vm = vm_new(program, program_size);
-      vm_run(&vm);
-      vm_dump_stack(&vm);
+      if (result->isStdOut) {
+        char buffer[4096] = {0};
+        FILE *temp = tmpfile();
+        if (!temp)
+          VM_PANIC("tmpfile failed");
 
-      if (vm.stack_pos != result->expected_sp) {
-        printf("FAIL: sp mismatch (expected %d, got %d)\n", result->expected_sp,
-               vm.stack_pos);
-        passed = false;
-      }
+        fflush(stdout);
+        int saved_fd = dup(fileno(stdout)); // save real stdout
+        dup2(fileno(temp), fileno(stdout)); // redirect stdout -> temp
 
-      if (passed && vm.stack_pos > 0) {
-        Data got = vm.stack[vm.stack_pos - 1];
+        VM vm = vm_new(program, program_size);
+        vm_run(&vm); // now prints go into temp
 
-        if (got.type != result->data.type) {
-          printf("FAIL: type mismatch\n");
+        fflush(stdout);
+        dup2(saved_fd, fileno(stdout)); // restore real stdout
+        close(saved_fd);
+
+        rewind(temp);
+        fread(buffer, 1, sizeof(buffer) - 1, temp);
+        fclose(temp);
+
+        printf("expected: %s\n", result->stdOut);
+        printf("received: %s\n", buffer);
+        passed = (strcmp(buffer, result->stdOut) == 0);
+      } else {
+        VM vm = vm_new(program, program_size);
+        vm_run(&vm);
+        vm_dump_stack(&vm);
+
+        if (vm.stack_pos != result->expected_sp) {
+          printf("FAIL: sp mismatch (expected %d, got %d)\n",
+                 result->expected_sp, vm.stack_pos);
           passed = false;
-        } else if (got.type == TYPE_INT) {
-          printf("expected: %ld\n", result->data.word.i);
-          printf("received: %ld\n", got.word.i);
-          passed = (got.word.i == result->data.word.i);
-        } else if (got.type == TYPE_FLOAT) {
-          printf("expected: %.6f\n", result->data.word.f);
-          printf("received: %.6f\n", got.word.f);
-          passed = fabs(got.word.f - result->data.word.f) < 1e-9;
-        } else if (got.type == TYPE_PTR) {
-          printf("expected ptr: %ld\n", result->data.word.i);
-          printf("received ptr: %ld\n", got.word.i);
-          passed = (got.word.i == result->data.word.i);
-        } else if (got.type == TYPE_STR) {
-          const char *got_str = &vm.string_pool[got.word.i];
-          const char *expected_str = &vm.string_pool[result->data.word.i];
-          printf("expected: \"%s\"\n", expected_str);
-          printf("received: \"%s\"\n", got_str);
-          passed = (strcmp(got_str, expected_str) == 0);
+        } else if (vm.stack_pos > 0) {
+          Data got = vm.stack[vm.stack_pos - 1];
+
+          if (got.type != result->data.type) {
+            printf("FAIL: type mismatch\n");
+            passed = false;
+          } else if (got.type == TYPE_INT) {
+            printf("expected: %ld\n", result->data.word.i);
+            printf("received: %ld\n", got.word.i);
+            passed = (got.word.i == result->data.word.i);
+          } else if (got.type == TYPE_FLOAT) {
+            printf("expected: %.6f\n", result->data.word.f);
+            printf("received: %.6f\n", got.word.f);
+            passed = fabs(got.word.f - result->data.word.f) < 1e-9;
+          } else if (got.type == TYPE_PTR) {
+            printf("expected ptr: %ld\n", result->data.word.i);
+            printf("received ptr: %ld\n", got.word.i);
+            passed = (got.word.i == result->data.word.i);
+          } else if (got.type == TYPE_STR) {
+            const char *got_str = &vm.string_pool[got.word.i];
+            const char *expected_str = &vm.string_pool[result->data.word.i];
+            printf("expected: \"%s\"\n", expected_str);
+            printf("received: \"%s\"\n", got_str);
+            passed = (strcmp(got_str, expected_str) == 0);
+          }
         }
       }
     }
