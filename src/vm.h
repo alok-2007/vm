@@ -68,7 +68,12 @@ typedef enum {
   OP_WRITE,
   OP_READ,
   OP_PUSH_STR, // string
-  OP_HALT,     // special
+  OP_ITOF,     // TYPE CONVERSION
+  OP_FTOI,
+  OP_ITOC,
+  OP_TOI,
+  OP_TOF,
+  OP_HALT, // special
 } Opcode;
 
 typedef struct {
@@ -172,6 +177,17 @@ typedef struct {
 #define PUSH_STR(x)                                                            \
   (Inst) { .opcode = OP_PUSH_STR, .string_literal = (x) }
 
+#define ITOF                                                                   \
+  (Inst) { .opcode = OP_ITOF }
+#define FTOI                                                                   \
+  (Inst) { .opcode = OP_FTOI }
+#define ITOC                                                                   \
+  (Inst) { .opcode = OP_ITOC }
+#define TOI                                                                    \
+  (Inst) { .opcode = OP_TOI }
+#define TOF                                                                    \
+  (Inst) { .opcode = OP_TOF }
+
 #define HALT                                                                   \
   (Inst) { .opcode = OP_HALT }
 
@@ -180,4 +196,7 @@ void vm_run(VM *vm);
 void vm_dump_stack(VM *vm); /* debug helper */
 const char *opcode_to_string(Opcode opcode);
 bool haveOperand(Opcode opcode);
+bool isInt(const char *);
+bool isFloat(const char *);
+char *mystrdup(const char *s);
 #endif

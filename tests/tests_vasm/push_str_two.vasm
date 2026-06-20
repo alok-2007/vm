@@ -1,0 +1,3 @@
+push_str "hello"
+push_str "world"
+halt

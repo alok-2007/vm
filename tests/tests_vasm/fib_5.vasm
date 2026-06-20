@@ -1,0 +1,23 @@
+push 5
+push 2
+push 0
+push 1
+indup 1
+indup 1
+add
+indup 3
+push 1
+add
+indup 5
+sub
+zjmp 22
+indup 3
+push 1
+add
+inswap 4
+pop
+swap
+inswap 2
+pop
+jmp 4
+halt

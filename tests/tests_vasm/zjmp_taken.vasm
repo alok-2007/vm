@@ -1,0 +1,5 @@
+push 0
+zjmp 4
+push 1
+halt
+halt

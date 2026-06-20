@@ -1,0 +1,3 @@
+push 65
+itoc
+halt

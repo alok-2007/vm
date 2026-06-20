@@ -1,0 +1,3 @@
+mov_imm_f 0, 3.5
+push_reg 0
+halt

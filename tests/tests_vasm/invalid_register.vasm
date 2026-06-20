@@ -1,0 +1,2 @@
+mov_imm 16, 2
+halt

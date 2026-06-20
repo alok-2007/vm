@@ -19,7 +19,7 @@ $(TARGET): $(OBJ)
 
 test:
 	$(CC) $(CFLAGS) $(SRC) $(TESTS) -o test $(LDFLAGS)
-	./test
+	./test ./tests/tests_vasm ./tests/expected.txt
 
 clean:
 	rm -f $(OBJ) $(TARGET) test

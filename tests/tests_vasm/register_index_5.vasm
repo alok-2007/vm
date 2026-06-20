@@ -1,0 +1,3 @@
+mov_imm 5, 99
+push_reg 5
+halt

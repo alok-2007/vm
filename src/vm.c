@@ -68,6 +68,16 @@ const char *opcode_to_string(Opcode opcode) {
     return "READ";
   case OP_PUSH_STR:
     return "PUSH_STR";
+  case OP_ITOF:
+    return "ITOF";
+  case OP_FTOI:
+    return "FTOI";
+  case OP_ITOC:
+    return "ITOC";
+  case OP_TOI:
+    return "TOI";
+  case OP_TOF:
+    return "TOF";
   case OP_HALT:
     return "HALT";
   default:
@@ -81,6 +91,33 @@ bool haveOperand(Opcode opcode) {
       opcode == OP_NZJMP || opcode == OP_CALL || opcode == OP_MOV_IMM ||
       opcode == OP_MOV_TOP || opcode == OP_PUSH_REG || opcode == OP_PUSH_STR) {
     return true;
+  }
+  return false;
+};
+
+char *mystrdup(const char *s) {
+  size_t len = strlen(s) + 1;
+  char *p = malloc(len);
+  return p ? memcpy(p, s, len) : NULL;
+}
+
+bool isInt(const char *str) {
+  int len = strlen(str);
+  for (int i = 0; i < len; i++) {
+    char c = str[i];
+    if (!(c >= (int)'0' && c <= (int)'9')) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool isFloat(const char *buffer) {
+  int len = strlen(buffer);
+  for (int i = 0; i < len; i++) {
+    if (buffer[i] == '.') {
+      return true;
+    }
   }
   return false;
 };
@@ -155,7 +192,6 @@ void vm_run(VM *vm) {
     int64_t depth;
     bool cond;
     int64_t i;
-    int64_t address;
     Inst inst = vm->program[vm->ip];
     switch (inst.opcode) {
     case OP_PUSH:
@@ -524,6 +560,52 @@ void vm_run(VM *vm) {
           (Data){.type = TYPE_STR, .word.i = string_offset};
       break;
     }
+    case OP_ITOF:
+      a = pop(vm);
+      if (a.type != TYPE_INT) {
+        VM_PANIC("type mismatch from ITOF");
+      }
+      push_f(vm, (double)a.word.i);
+      break;
+    case OP_FTOI:
+      a = pop(vm);
+      if (a.type != TYPE_FLOAT) {
+        VM_PANIC("type mismatch from FTOI");
+      }
+      push(vm, (int64_t)a.word.f);
+      break;
+    case OP_ITOC:
+      a = pop(vm);
+      if (a.type != TYPE_INT) {
+        VM_PANIC("type mismatch from ITOF");
+      }
+      int64_t value = a.word.i;
+      if (value < 0 || value > 255) {
+        VM_PANIC("value out of char range");
+      }
+      push(vm, value);
+      break;
+    case OP_TOI:
+      a = pop(vm);
+      if (a.type == TYPE_STR || a.type == TYPE_PTR) {
+        VM_PANIC("type mismatch from TOI");
+      } else if (a.type == TYPE_FLOAT) {
+        push(vm, (int64_t)a.word.f);
+      } else {
+        push(vm, a.word.i);
+      }
+      break;
+    case OP_TOF:
+      a = pop(vm);
+      printf("i came\n");
+      if (a.type == TYPE_STR || a.type == TYPE_PTR) {
+        VM_PANIC("type mismatch from TOF");
+      } else if (a.type == TYPE_INT) {
+        push_f(vm, (double)a.word.i);
+      } else {
+        push_f(vm, a.word.f);
+      }
+      break;
     case OP_HALT:
       return;
     default:

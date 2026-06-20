@@ -1,0 +1,8 @@
+push 4
+alloc
+dup
+push 42
+swap
+write
+read
+halt

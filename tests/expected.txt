@@ -1,0 +1,56 @@
+push TYPE_INT 42 1 
+add TYPE_INT 30 1
+sub TYPE_INT 7 1
+mul TYPE_INT 42 1
+div TYPE_INT 5 1
+mod TYPE_INT 1 1
+pop TYPE_INT 2 2
+chained TYPE_INT 49 1
+negative_add TYPE_INT -2 1
+negative_sub TYPE_INT -7 1
+int_add TYPE_INT 13 1
+float_add TYPE_FLOAT 4.0 1
+int_mul TYPE_INT 42 1
+float_div TYPE_FLOAT 1.5 1
+int_mod TYPE_INT 1 1
+dup TYPE_INT 5 2
+swap TYPE_INT 1 2
+indup TYPE_INT 2 4
+cmp_eq_true TYPE_INT 1 1
+cmp_eq_false TYPE_INT 0 1
+cmp_lt_true TYPE_INT 1 1
+cmp_gt_false TYPE_INT 0 1
+cmp_eq_float TYPE_INT 1 1
+jmp TYPE_INT 1 1
+zjmp_taken TYPE_INT 0 0
+zjmp_not_taken TYPE_INT 99 1
+square_call TYPE_INT 16 1
+fib_5 TYPE_INT 3 5
+mov_imm TYPE_INT 42 1
+mov_imm_float TYPE_FLOAT 3.5 1
+mov_top TYPE_INT 10 2
+register_add TYPE_INT 3 1
+register_index_5 TYPE_INT 99 1
+alloc TYPE_PTR 0 1
+write_then_read TYPE_INT 42 1
+alloc_then_dealloc TYPE_INT 0 0
+two_independent_blocks TYPE_INT 11 2
+invalid_register PANIC 
+double_dealloc PANIC 
+read_with_non-pointer_type PANIC
+write_with_non-pointer_type PANIC
+alloc_negative_size PANIC
+alloc_zero_size PANIC 
+push_str_hi TYPE_STR 0 1
+push_str_two TYPE_STR 6 2
+push_str_empty TYPE_STR 0 1
+itof_positive TYPE_FLOAT 5.0 1
+ftoi_positive_truncate TYPE_INT 3 1
+ftoi_negative_truncate TYPE_INT -3 1
+itoc_valid_range TYPE_INT 65 1
+itoc_overflow_panic PANIC 
+itoc_underflow_panic PANIC 
+toi_int_pass-through TYPE_INT 5 1
+tof_float_pass-through TYPE_FLOAT 5.0 1
+toi_float_to_int TYPE_INT 9 1
+tof_int_to_float TYPE_FLOAT 9.0 1
