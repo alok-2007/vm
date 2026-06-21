@@ -1,5 +1,0 @@
-push 1
-zjmp 4
-push 99
-halt
-halt

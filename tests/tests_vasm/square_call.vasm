@@ -1,6 +1,0 @@
-push 4
-call 3
-halt
-dup
-mul
-ret

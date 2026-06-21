@@ -1,3 +1,0 @@
-push 66
-native print_char
-halt

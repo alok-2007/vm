@@ -1,6 +1,0 @@
-mov_imm 0, 1
-mov_imm 1, 2
-push_reg 0
-push_reg 1
-add
-halt

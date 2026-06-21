@@ -1,3 +1,0 @@
-push_str "hello world!"
-native print_str
-halt

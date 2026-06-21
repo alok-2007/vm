@@ -1,4 +1,0 @@
-push 10
-mov_top 1
-push_reg 1
-halt

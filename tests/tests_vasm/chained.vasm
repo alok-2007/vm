@@ -1,8 +1,0 @@
-push 3
-push 4
-add
-push 10
-push 3
-sub
-mul
-halt

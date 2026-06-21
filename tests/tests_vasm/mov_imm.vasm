@@ -1,3 +1,0 @@
-mov_imm 0, 42
-push_reg 0
-halt

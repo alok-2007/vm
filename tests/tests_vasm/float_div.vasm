@@ -1,4 +1,0 @@
-push_f 3.0
-push_f 2.0
-div
-halt

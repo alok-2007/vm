@@ -1,4 +1,0 @@
-push 123456
-push 42
-write
-halt

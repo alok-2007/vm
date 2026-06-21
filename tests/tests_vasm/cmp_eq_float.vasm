@@ -1,4 +1,0 @@
-push_f 1.5
-push_f 1.5
-cmp_eq
-halt

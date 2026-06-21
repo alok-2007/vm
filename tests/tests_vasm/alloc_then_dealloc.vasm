@@ -1,4 +1,0 @@
-push 4
-alloc
-dealloc
-halt
