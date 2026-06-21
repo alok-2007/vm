@@ -1,6 +1,8 @@
+#define _POSIX_C_SOURCE 200809L
 #include "vasm.h"
 #include "vm.h"
 #include <ctype.h>
+#include <limits.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -400,4 +402,160 @@ const char *read_source_from_disk(const char *filePath) {
 
   fclose(fd);
   return source;
+}
+
+// --- preprocessor ---
+
+void appendWords(char **src, int *capacity, int *wp, const char *toWrite) {
+  int toWriteLen = strlen(toWrite);
+  if ((toWriteLen + *wp) > (*capacity - 1)) {
+    *capacity += toWriteLen * 2;
+    char *tem = realloc(*src, *capacity);
+    if (tem == NULL) {
+      VM_PANIC("reallocation failed in preprocessor append words");
+    }
+    *src = tem;
+  }
+  strncpy(*src + *wp, toWrite, toWriteLen);
+  *wp += toWriteLen;
+}
+
+char *preprocessor(const char *src, const char *base_dir,
+                   const char ***import_stack, int stack_depth,
+                   int *stack_capacity, HashMap *map) {
+  int capacity = 1024;
+  char *modSource = malloc(capacity);
+  int wp = 0;
+  int rp = 0;
+
+  char buffer[1024];
+  int bufPtr = 0;
+
+  int srcLen = strlen(src);
+
+  while (rp < srcLen) {
+    if (src[rp] == ' ' || src[rp] == '\n' || src[rp] == '\r') {
+      char single[2] = {src[rp], '\0'};
+      appendWords(&modSource, &capacity, &wp, single);
+      rp++;
+      continue;
+    }
+    bufPtr = 0;
+    while (src[rp] != ' ' && src[rp] != '\n') {
+      buffer[bufPtr++] = src[rp++];
+    }
+    buffer[bufPtr] = '\0';
+    if (strcmp(buffer, "@def") == 0) {
+      char *name;
+      char *value;
+      while (src[rp] == ' ') {
+        rp++;
+      }
+      bufPtr = 0; // getting @def name
+      while (src[rp] != ' ' && src[rp] != '\n') {
+        buffer[bufPtr++] = src[rp++];
+      }
+      if (src[rp] != ' ') {
+        VM_PANIC("from preprocessor @def have semantic issue");
+      }
+      buffer[bufPtr] = '\0';
+      name = mystrdup(buffer);
+      if (iskeyword(name)) {
+        VM_PANIC("from preprocessor keyword can not be used as @def name");
+      }
+      rp++;
+      while (src[rp] == ' ') {
+        rp++;
+      }
+      bufPtr = 0; // getting @def value
+      if (src[rp] == '\"') {
+        rp++;
+        while (src[rp] != '\"' && src[rp] != '\n') {
+          buffer[bufPtr++] = src[rp++];
+        }
+        if (src[rp] != '\"') {
+          VM_PANIC("from preprocessor @def value with \" left unclosed");
+        }
+        if (bufPtr <= 0) {
+          VM_PANIC("@def name not available");
+        }
+        buffer[bufPtr] = '\0';
+        value = mystrdup(buffer);
+        rp++;
+      } else {
+        while (src[rp] != ' ' && src[rp] != '\n') {
+          buffer[bufPtr++] = src[rp++];
+        }
+        if (bufPtr <= 0) {
+          VM_PANIC("@def value not available");
+        }
+        buffer[bufPtr] = '\0';
+        value = mystrdup(buffer);
+        while (src[rp] == ' ') {
+          rp++;
+        }
+        if (src[rp] == '\n') {
+          rp++;
+        }
+      }
+      hashmap_insert(map, name, value);
+    } else if (strcmp(buffer, "@imp") == 0) {
+      while (src[rp] == ' ') {
+        rp++;
+      }
+      if (src[rp] != '\"') {
+        VM_PANIC("semantic issue with @imp");
+      }
+      rp++;
+      bufPtr = 0; // going for import file
+      while (src[rp] != ' ' && src[rp] != '\n' && src[rp] != '\"') {
+        buffer[bufPtr++] = src[rp++];
+      }
+      buffer[bufPtr] = '\0';
+      if (src[rp] != '\"') {
+        VM_PANIC("semantic issue with closing quote of @imp");
+      }
+      rp++;
+      while (src[rp] == ' ') {
+        rp++;
+      }
+      if (src[rp] != '\n') {
+        VM_PANIC("semantic issue with @imp line from preprocessor");
+      }
+      rp++;
+      char absolute_file_path[PATH_MAX];
+      snprintf(absolute_file_path, sizeof(absolute_file_path), "%s/%s",
+               base_dir, buffer);
+      for (int i = 0; i < stack_depth; i++) {
+        if (strcmp((*import_stack)[i], absolute_file_path) == 0) {
+          VM_PANIC(" from preprocessor tangle import found!");
+        }
+      }
+      if (stack_depth >= *stack_capacity) {
+        const char **tem =
+            realloc(import_stack, sizeof(char *) * (*stack_capacity * 2));
+        if (tem == NULL) {
+          VM_PANIC("from stack_capacity realloc block , it's failed");
+        }
+        *stack_capacity *= 2;
+        *import_stack = tem;
+      }
+      (*import_stack)[stack_depth++] = mystrdup(absolute_file_path);
+      const char *callSrc = read_source_from_disk(absolute_file_path);
+      const char *toSplice = preprocessor(callSrc, base_dir, import_stack,
+                                          stack_depth, stack_capacity, map);
+      printf("splice : %s\n", toSplice);
+      stack_depth--;
+      appendWords(&modSource, &capacity, &wp, toSplice);
+    } else {
+      char *value = hashmap_get(map, buffer);
+      if (value == NULL) {
+        appendWords(&modSource, &capacity, &wp, mystrdup(buffer));
+      } else {
+        appendWords(&modSource, &capacity, &wp, mystrdup(value));
+      }
+    }
+  }
+  modSource[wp] = '\0';
+  return modSource;
 }

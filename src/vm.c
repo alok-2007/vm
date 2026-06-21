@@ -1,7 +1,9 @@
+#define _POSIX_C_SOURCE 200809L
 #include "vm.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <strings.h>
 
 const char *opcode_to_string(Opcode opcode) {
   switch (opcode) {
@@ -88,6 +90,38 @@ const char *opcode_to_string(Opcode opcode) {
   }
 }
 
+bool iskeyword(const char *ch) {
+  if (strcasecmp(ch, "push") == 0 || strcasecmp(ch, "push_f") == 0 ||
+      strcasecmp(ch, "pop") == 0 || strcasecmp(ch, "dup") == 0 ||
+      strcasecmp(ch, "swap") == 0 || strcasecmp(ch, "indup") == 0 ||
+      strcasecmp(ch, "inswap") == 0 || strcasecmp(ch, "add") == 0 ||
+      strcasecmp(ch, "sub") == 0 || strcasecmp(ch, "mul") == 0 ||
+      strcasecmp(ch, "div") == 0 || strcasecmp(ch, "mod") == 0 ||
+      strcasecmp(ch, "cmp_eq") == 0 || strcasecmp(ch, "cmp_ne") == 0 ||
+      strcasecmp(ch, "cop_lt") == 0 || strcasecmp(ch, "cmp_le") == 0 ||
+      strcasecmp(ch, "cmp_gt") == 0 || strcasecmp(ch, "ge") == 0 ||
+      strcasecmp(ch, "jmp") == 0 || strcasecmp(ch, "zjmp") == 0 ||
+      strcasecmp(ch, "nzjmp") == 0 || strcasecmp(ch, "call") == 0 ||
+      strcasecmp(ch, "ret") == 0 || strcasecmp(ch, "mov_imm") == 0 ||
+      strcasecmp(ch, "mov_imm_f") == 0 || strcasecmp(ch, "mov_top") == 0 ||
+      strcasecmp(ch, "push_reg") == 0 || strcasecmp(ch, "alloc") == 0 ||
+      strcasecmp(ch, "dealloc") == 0 || strcasecmp(ch, "write") == 0 ||
+      strcasecmp(ch, "read") == 0 || strcasecmp(ch, "push_str") == 0 ||
+      strcasecmp(ch, "itof") == 0 || strcasecmp(ch, "ftoi") == 0 ||
+      strcasecmp(ch, "itoc") == 0 || strcasecmp(ch, "toi") == 0 ||
+      strcasecmp(ch, "tof") == 0 || strcasecmp(ch, "native") == 0 ||
+      strcasecmp(ch, "halt") == 0) {
+    return true;
+  }
+  return false;
+}
+
+char *mystrdup(const char *s) {
+  size_t len = strlen(s) + 1;
+  char *p = malloc(len);
+  return p ? memcpy(p, s, len) : NULL;
+}
+
 bool haveOperand(Opcode opcode) {
   if (opcode == OP_PUSH || opcode == OP_PUSH_F || opcode == OP_INDUP ||
       opcode == OP_INSWAP || opcode == OP_JMP || opcode == OP_ZJMP ||
@@ -98,12 +132,6 @@ bool haveOperand(Opcode opcode) {
   }
   return false;
 };
-
-char *mystrdup(const char *s) {
-  size_t len = strlen(s) + 1;
-  char *p = malloc(len);
-  return p ? memcpy(p, s, len) : NULL;
-}
 
 bool isInt(const char *str) {
   int len = strlen(str);

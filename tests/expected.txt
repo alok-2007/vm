@@ -59,3 +59,4 @@ print_float TYPE_STDOUT "4.2400000\n"
 print_char TYPE_STDOUT "B"
 print_str TYPE_STDOUT "hello world!\n"
 exit_vm EXIT 0
+main TYPE_STDOUT "1\n"

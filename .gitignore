@@ -8,3 +8,5 @@
 # Other build files
 *.out
 *.a
+# test case folder 
+tests_vasm/

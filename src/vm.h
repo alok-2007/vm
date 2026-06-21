@@ -1,6 +1,5 @@
 #ifndef VM_H
 #define VM_H
-
 #include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -211,5 +210,6 @@ const char *opcode_to_string(Opcode opcode);
 bool haveOperand(Opcode opcode);
 bool isInt(const char *);
 bool isFloat(const char *);
+bool iskeyword(const char *);
 char *mystrdup(const char *s);
 #endif

@@ -1,7 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 #include "../src/vasm.h"
 #include "../src/vm.h"
-#include "hashmap.h"
 #include <dirent.h>
 #include <limits.h>
 #include <math.h>
@@ -28,6 +27,14 @@ typedef struct {
   const char *stdOut;
   int expected_sp;
 } Expected_Result;
+
+const char *get_extension(const char *filename) {
+  const char *dot = strrchr(filename, '.');
+  if (!dot || dot == filename) {
+    return "";
+  }
+  return dot + 1;
+}
 
 // run_expect_panic --- function to run a program that can crash
 static bool run_expect_panic(Inst *program, size_t size,
@@ -219,6 +226,12 @@ int main(int argc, char *argv[]) {
     if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
       continue;
     }
+    const char *ext = get_extension(entry->d_name);
+    if (strcmp(ext, "vasm") != 0) {
+      continue; // skip .hasm files (and anything else) — only run .vasm as
+                // top-level tests
+    }
+
     const char *name = entry->d_name;
     printf("\n=== TEST: %s ===\n", name);
 
@@ -234,8 +247,15 @@ int main(int argc, char *argv[]) {
     char absolute_file_path[PATH_MAX];
     snprintf(absolute_file_path, sizeof(absolute_file_path), "%s/%s",
              testCaseDir, entry->d_name);
-    const char *src = read_source_from_disk(absolute_file_path);
-    printf("%s\n", src);
+    const char *rawSrc = read_source_from_disk(absolute_file_path);
+    printf("rawSrc: \n%s\n", rawSrc);
+    HashMap *def_Map = hashmap_new(100);
+    int stack_capacity = 16;
+    const char **import_stack = malloc(stack_capacity * sizeof(char *));
+    import_stack[0] = mystrdup(absolute_file_path);
+    const char *src = preprocessor(rawSrc, testCaseDir, &import_stack, 1,
+                                   &stack_capacity, def_Map);
+    printf("processed:\n %s\n", src);
     TokenList tokens = lex(src);
     size_t program_size = 0;
     Inst *program = parse(tokens, &program_size);

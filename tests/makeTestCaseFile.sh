@@ -384,6 +384,16 @@ cat << 'E' > exit_vm.vasm
 push 0
 native exit_vm
 E
+cat << 'E' > common.hasm
+@def STDOUT 1
+E
+cat << 'E' > main.vasm
+@imp "common.hasm"
+push 42
+push STDOUT
+native print_int
+halt
+E
 rm generate.sh
 EOF
 bash generate.sh

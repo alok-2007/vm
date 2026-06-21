@@ -1,7 +1,9 @@
+// vasm.h
 #ifndef VASM_H
 #define VASM_H
-
+#include "hashmap.h"
 #include "vm.h"
+#define IMPORT_STACK_MAX 256
 
 typedef enum {
   TOK_IDENT,
@@ -32,5 +34,8 @@ TokenList lex(const char *src);
 Inst *parse(TokenList tokens, size_t *out_cout);
 
 const char *read_source_from_disk(const char *path);
+char *preprocessor(const char *source, const char *base_dir,
+                   const char ***import_stack, int stack_depth,
+                   int *stack_capacity, HashMap *map);
 
 #endif

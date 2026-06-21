@@ -1,22 +1,4 @@
-#include "../src/vm.h"
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-typedef void (*ValueFreeFunc)(void *ptr);
-
-typedef struct HMNode {
-  char *key;   // Hardcoded to string
-  void *value; // Generic value payload
-  struct HMNode *next;
-} HMNode;
-
-typedef struct {
-  HMNode **buckets;
-  size_t capacity;
-  size_t size;
-} HashMap;
+#include "hashmap.h"
 
 static unsigned long hash_string(const char *str, size_t capacity) {
   unsigned long hash = 5381;
