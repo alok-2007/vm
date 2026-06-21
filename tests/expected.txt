@@ -42,7 +42,7 @@ write_with_non-pointer_type PANIC
 alloc_negative_size PANIC
 alloc_zero_size PANIC 
 push_str_hi TYPE_STR 0 1
-push_str_two TYPE_STR 6 2
+push_str_two TYPE_STR 6f 2
 push_str_empty TYPE_STR 0 1
 itof_positive TYPE_FLOAT 5.0 1
 ftoi_positive_truncate TYPE_INT 3 1

@@ -10,3 +10,4 @@
 *.a
 # test case folder 
 tests_vasm/
+tasms/

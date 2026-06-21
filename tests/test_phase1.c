@@ -1,7 +1,9 @@
 #define _POSIX_C_SOURCE 200809L
+#include "../src/serialize.h"
 #include "../src/vasm.h"
 #include "../src/vm.h"
 #include <dirent.h>
+#include <errno.h>
 #include <limits.h>
 #include <math.h>
 #include <stddef.h>
@@ -9,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h> // For mkdir on Linux/macOS
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -34,6 +37,21 @@ const char *get_extension(const char *filename) {
     return "";
   }
   return dot + 1;
+}
+
+const char *get_filename(char *filename) {
+  char *dot = strrchr(filename, '.');
+  if (!dot || dot == filename) {
+    VM_PANIC("from get_filename no name");
+  }
+  char buffer[1024];
+  int bufPtr = 0;
+  while (filename < dot && bufPtr < 1023) {
+    buffer[bufPtr++] = *filename;
+    filename += 1;
+  }
+  buffer[bufPtr] = '\0';
+  return mystrdup(buffer);
 }
 
 // run_expect_panic --- function to run a program that can crash
@@ -87,7 +105,7 @@ void buildExpectedHashmap(HashMap *map, const char *src) {
 
     // Format target filename key with its proper extension format
     char filename_key[1024];
-    snprintf(filename_key, sizeof(filename_key), "%s.vasm", buffer);
+    snprintf(filename_key, sizeof(filename_key), "%s", buffer);
     newResult->name = mystrdup(filename_key);
 
     while (src[i] == ' ')
@@ -198,6 +216,52 @@ void buildExpectedHashmap(HashMap *map, const char *src) {
     hashmap_insert(map, newResult->name, newResult);
   }
 }
+// -- serializer --
+void serializer(const char *dirSrc) {
+  DIR *dir = opendir(dirSrc);
+  if (dir == NULL) {
+    VM_PANIC("unable to open directory");
+  }
+  if (mkdir("tests/tasms", 0777) != 0) {
+    if (errno != EEXIST) {
+      VM_PANIC("failed to create tasms directory");
+    }
+  }
+  struct dirent *entry;
+  while ((entry = readdir(dir)) != NULL) {
+    if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+      continue;
+    }
+    const char *ext = get_extension(entry->d_name);
+    if (strcmp(ext, "vasm") != 0) {
+      continue; // skip .hasm files (and anything else) — only run .vasm as
+                // top-level tests
+    }
+    char absolute_file_path[PATH_MAX];
+    snprintf(absolute_file_path, sizeof(absolute_file_path), "%s/%s", dirSrc,
+             entry->d_name);
+    const char *rawSrc = read_source_from_disk(absolute_file_path);
+    printf("rawSrc: \n%s\n", rawSrc);
+    HashMap *def_Map = hashmap_new(100);
+    int stack_capacity = 16;
+    const char **import_stack = malloc(stack_capacity * sizeof(char *));
+    import_stack[0] = mystrdup(absolute_file_path);
+    const char *src = preprocessor(rawSrc, dirSrc, &import_stack, 1,
+                                   &stack_capacity, def_Map);
+    printf("processed:\n %s\n", src);
+    TokenList tokens = lex(src);
+    size_t program_size = 0;
+    Inst *program = parse(tokens, &program_size);
+    if (program_size <= 0) {
+      VM_PANIC("parse didn't return program");
+    }
+    char absolute_tasm_path[PATH_MAX];
+    snprintf(absolute_tasm_path, sizeof(absolute_tasm_path), "%s/%s.tasm",
+             "tests/tasms", get_filename(entry->d_name));
+    bool serialize_res =
+        serialize_program(program, program_size, absolute_tasm_path);
+  }
+}
 
 /* ───────────────────────────── main ─────────────────────────────────── */
 int main(int argc, char *argv[]) {
@@ -209,13 +273,13 @@ int main(int argc, char *argv[]) {
 
   const char *testCaseDir = argv[1];
   const char *expectedFile = argv[2];
-
+  serializer(testCaseDir);
   HashMap *map = hashmap_new(100);
   printf("in hashmp build\n");
   buildExpectedHashmap(map, read_source_from_disk(expectedFile));
   printf("out hashmp build\n");
 
-  DIR *dir = opendir(testCaseDir);
+  DIR *dir = opendir("tests/tasms");
   if (dir == NULL) {
     VM_PANIC("unable to open directory");
   }
@@ -227,12 +291,12 @@ int main(int argc, char *argv[]) {
       continue;
     }
     const char *ext = get_extension(entry->d_name);
-    if (strcmp(ext, "vasm") != 0) {
+    if (strcmp(ext, "tasm") != 0) {
       continue; // skip .hasm files (and anything else) — only run .vasm as
                 // top-level tests
     }
 
-    const char *name = entry->d_name;
+    const char *name = get_filename(entry->d_name);
     printf("\n=== TEST: %s ===\n", name);
 
     Expected_Result *result = hashmap_get(map, name);
@@ -242,27 +306,12 @@ int main(int argc, char *argv[]) {
       printf("skipping..\n");
       continue;
     }
-
     tests_run++;
-    char absolute_file_path[PATH_MAX];
-    snprintf(absolute_file_path, sizeof(absolute_file_path), "%s/%s",
-             testCaseDir, entry->d_name);
-    const char *rawSrc = read_source_from_disk(absolute_file_path);
-    printf("rawSrc: \n%s\n", rawSrc);
-    HashMap *def_Map = hashmap_new(100);
-    int stack_capacity = 16;
-    const char **import_stack = malloc(stack_capacity * sizeof(char *));
-    import_stack[0] = mystrdup(absolute_file_path);
-    const char *src = preprocessor(rawSrc, testCaseDir, &import_stack, 1,
-                                   &stack_capacity, def_Map);
-    printf("processed:\n %s\n", src);
-    TokenList tokens = lex(src);
-    size_t program_size = 0;
-    Inst *program = parse(tokens, &program_size);
-    if (program_size <= 0) {
-      VM_PANIC("parse didn't return program");
-    }
-
+    char absolute_tasm_path[PATH_MAX];
+    snprintf(absolute_tasm_path, sizeof(absolute_tasm_path), "%s/%s.tasm",
+             "tests/tasms", get_filename(entry->d_name));
+    int program_size;
+    Inst *program = deserialize_program(absolute_tasm_path, &program_size);
     bool passed = true;
     if (result->willPanic || result->isExit) {
       bool status = run_expect_panic(program, program_size, result);
