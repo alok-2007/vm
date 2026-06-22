@@ -1,3 +1,4 @@
+
 #define _POSIX_C_SOURCE 200809L
 #include "vm.h"
 #include <stdbool.h>
@@ -688,6 +689,55 @@ void vm_run(VM *vm) {
         }
         exit(a.word.i);
       }
+      break;
+    case OP_LOAD_LIB: {
+      const char *file = inst.string_literal;
+      if (file == NULL) {
+        VM_ERROR(vm, "from op_load_lib file not provided");
+      }
+      if (vm->stack_pos >= MAX_STACK) {
+        VM_ERROR(vm, "stack overflow");
+      }
+      char absolute_file_path[PATH_MAX];
+      snprintf(absolute_file_path, sizeof(absolute_file_path), "%s/%s", "./lib",
+               file);
+      void *handle_ptr = dlopen(absolute_file_path, RTLD_LAZY);
+      if (handle_ptr == NULL) {
+        VM_ERROR(vm, "dlopen failed: %s", dlerror());
+      }
+      int64_t handle = (int64_t)(uintptr_t)handle_ptr;
+      vm->stack[vm->stack_pos++] = (Data){.type = TYPE_PTR, .word.i = handle};
+      break;
+    }
+    case OP_LOAD_FN: {
+      a = pop(vm);
+      if (a.type != TYPE_PTR) {
+        VM_ERROR(vm, "from op_load_fn lib ptr is  not in stack");
+      }
+      const char *fn_name = inst.string_literal;
+      if (fn_name == NULL) {
+        VM_ERROR(vm, "from op_load_fn name not provided");
+      }
+      void *fn_ptr = dlsym((void *)a.word.i, fn_name);
+      if (fn_ptr == NULL) {
+        VM_ERROR(vm, "dlsym failed: %s", dlerror());
+      }
+      int64_t fn = (int64_t)(uintptr_t)fn_ptr;
+      vm->stack[vm->stack_pos++] = (Data){.type = TYPE_PTR, .word.i = fn};
+      break;
+    }
+    case OP_CALL_NATIVE:
+      a = pop(vm);
+      if (a.type != TYPE_INT) {
+        VM_ERROR(vm, "from call native one operate on int");
+      }
+      b = pop(vm);
+      if (b.type != TYPE_PTR) {
+        VM_ERROR(vm, "from call native function ptr is not provided");
+      }
+      int64_t (*fn)(int64_t) = (int64_t (*)(int64_t))(uintptr_t)b.word.i;
+      int64_t result = fn(a.word.i);
+      push(vm, result);
       break;
     case OP_HALT:
       return;

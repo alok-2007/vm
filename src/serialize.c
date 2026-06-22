@@ -31,7 +31,9 @@ bool serialize_program(const Inst *program, size_t count,
     fwrite(&inst.reg_index, sizeof(inst.reg_index), 1, f);
 
     // Evaluate the original instruction slot from input array safely
-    if (program[i].opcode == OP_PUSH_STR && program[i].string_literal != NULL) {
+    if ((program[i].opcode == OP_PUSH_STR || program[i].opcode == OP_LOAD_LIB ||
+         program[i].opcode == OP_LOAD_FN) &&
+        program[i].string_literal != NULL) {
       uint64_t len = (uint64_t)strlen(program[i].string_literal);
       fwrite(&len, sizeof(len), 1, f);
       fwrite(program[i].string_literal, 1, len, f);
@@ -99,7 +101,8 @@ Inst *deserialize_program(const char *filepath, int *out_count) {
       str[len] = '\0'; // Enforce solid null termination alignment
       pro[i].string_literal = str;
     } else {
-      if (pro[i].opcode == OP_PUSH_STR) {
+      if (pro[i].opcode == OP_PUSH_STR || pro[i].opcode == OP_LOAD_LIB ||
+          pro[i].opcode == OP_LOAD_FN) {
         char empty[] = {'\0'};
         pro[i].string_literal = mystrdup(empty);
       } else {

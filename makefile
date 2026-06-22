@@ -1,7 +1,7 @@
 CC = gcc
 
 CFLAGS = -Wall -Wextra -std=c11 -g
-LDFLAGS = -lm
+LDFLAGS = -lm -ldl
 
 SRC = $(wildcard src/*.c)
 TESTS = $(wildcard tests/*.c)

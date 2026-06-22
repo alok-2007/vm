@@ -1,5 +1,7 @@
 #ifndef VM_H
 #define VM_H
+#include <dlfcn.h>
+#include <limits.h>
 #include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -82,8 +84,11 @@ typedef enum {
   OP_ITOC,
   OP_TOI,
   OP_TOF,
-  OP_NATIVE, // native
-  OP_HALT,   // special
+  OP_NATIVE,   // native
+  OP_LOAD_LIB, // library
+  OP_LOAD_FN,
+  OP_CALL_NATIVE,
+  OP_HALT, // special
 } Opcode;
 
 typedef enum {
@@ -215,7 +220,12 @@ typedef struct {
   (Inst) { .opcode = OP_TOF }
 
 #define NATIVE(t) (Inst){.opcode = OP_NATIVE, .nativeEntry = (t)};
-
+#define LOAD_LIB(p)                                                            \
+  (Inst) { .opcode = OP_LOAD_LIB, .string_literal = (x) }
+#define LOAD_FN(f)                                                             \
+  (Inst) { .opcode = OP_LOAD_FN, .string_literal = (x) }
+#define CALL_NATIVE                                                            \
+  (Inst) { .opcode = OP_CALL_NATIVE }
 #define HALT                                                                   \
   (Inst) { .opcode = OP_HALT }
 

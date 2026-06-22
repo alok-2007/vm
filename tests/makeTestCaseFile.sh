@@ -425,6 +425,14 @@ push 10
 mul
 ret
 E
+cat << 'E' > load_fn_test.vasm
+load_lib "mylib.so"
+load_fn "my_double"
+push 21
+call_native
+native print_int
+halt
+E
 rm generate.sh
 EOF
 bash generate.sh

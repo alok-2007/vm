@@ -64,3 +64,4 @@ type_error_in_call PANIC
 stack_overflow PANIC
 div_zero_in_call PANIC
 type_mismatch_nested PANIC
+load_fn_test TYPE_STDOUT "42\n"

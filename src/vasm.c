@@ -395,6 +395,31 @@ Inst *parse(TokenList list, size_t *out_count) {
       } else {
         VM_PANIC("unknown native function from parser");
       }
+    } else if (strcmp(items[i].text, "load_lib") == 0) {
+      i++;
+      if (!(i < size && items[i].type == TOK_STRING)) {
+        VM_PANIC("from parser syntax error line %d: 'native' expects a "
+                 "function name",
+                 items[i - 1].line);
+      }
+      pro[proLen++] = (Inst){.opcode = OP_LOAD_LIB,
+                             .string_literal = mystrdup(items[i].str_val),
+                             .line = items[i].line};
+      i++;
+    } else if (strcmp(items[i].text, "load_fn") == 0) {
+      i++;
+      if (!(i < size && items[i].type == TOK_STRING)) {
+        VM_PANIC("from parser syntax error line %d: 'native' expects a "
+                 "function name",
+                 items[i - 1].line);
+      }
+      pro[proLen++] = (Inst){.opcode = OP_LOAD_FN,
+                             .string_literal = mystrdup(items[i].str_val),
+                             .line = items[i].line};
+      i++;
+    } else if (strcmp(items[i].text, "call_native") == 0) {
+      pro[proLen++] = (Inst){.opcode = OP_CALL_NATIVE, .line = items[i].line};
+      i++;
     } else {
       VM_PANIC("from parser unknown keyword");
     }
