@@ -18,6 +18,16 @@
     exit(1);                                                                   \
   } while (0)
 
+#define VM_ERROR(vm, fmt, ...)                                                 \
+  do {                                                                         \
+    fprintf(stderr, "[vm] " fmt "\n", ##__VA_ARGS__);                          \
+    fprintf(stderr, "  at instruction %zu (line %d) opcode: %s\n", (vm)->ip,   \
+            (vm)->program[(vm)->ip].line,                                      \
+            opcode_to_string((vm)->program[(vm)->ip].opcode));                 \
+    vm_print_stack_trace(vm);                                                  \
+    exit(1);                                                                   \
+  } while (0)
+
 typedef enum {
   TYPE_INT,
   TYPE_FLOAT,
@@ -91,13 +101,19 @@ typedef struct {
   NativeFunction nativeEntry;
   const char *string_literal;
   int reg_index;
+  int line;
 } Inst;
+
+typedef struct {
+  size_t return_addr;
+  int line;
+} CallFrame;
 
 typedef struct {
   Data stack[MAX_STACK];
   int stack_pos;
 
-  size_t return_stack[MAX_STACK];
+  CallFrame return_stack[MAX_STACK];
   int rsp;
   size_t ip;
 
@@ -212,4 +228,5 @@ bool isInt(const char *);
 bool isFloat(const char *);
 bool iskeyword(const char *);
 char *mystrdup(const char *s);
+void vm_print_stack_trace(VM *vm);
 #endif

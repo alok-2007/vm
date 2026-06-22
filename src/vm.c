@@ -154,9 +154,21 @@ bool isFloat(const char *buffer) {
   return false;
 };
 
-static void validate_reg(int reg) {
+static void validate_reg(VM *vm, int reg) {
   if (reg < 0 || reg >= NUM_REGS) {
-    VM_PANIC("invalid register %d", reg);
+    VM_ERROR(vm, "invalid register %d", reg);
+  }
+}
+
+void vm_print_stack_trace(VM *vm) {
+  if (vm->rsp == 0)
+    return;
+  fprintf(stderr, "stack trace:\n");
+  for (int i = vm->rsp - 1; i >= 0; i--) {
+    fprintf(stderr, "  [%d] called from instruction %zu (line %d)\n",
+            vm->rsp - 1 - i,
+            vm->return_stack[i].return_addr - 1, // -1 = the CALL itself
+            vm->return_stack[i].line);
   }
 }
 
@@ -171,13 +183,13 @@ static void validateHeapAllocation(VM *vm, int64_t address) {
     i--;
   }
   if (foundBlock == false) {
-    VM_PANIC("unallocated block used");
+    VM_ERROR(vm, "unallocated block used");
   } else {
     int64_t usedBlock = vm->heap_block_used[i];
     if ((i + usedBlock - 1) >= address) {
       return;
     } else {
-      VM_PANIC("unallocated block used");
+      VM_ERROR(vm, "unallocated block used");
     }
   }
 }
@@ -191,28 +203,28 @@ VM vm_new(Inst *program, size_t size) {
 
 static void push(VM *vm, int64_t val) {
   if (vm->stack_pos >= MAX_STACK) {
-    VM_PANIC("stack overflow (max %d)", MAX_STACK);
+    VM_ERROR(vm, "stack overflow (max %d)", MAX_STACK);
   }
   vm->stack[vm->stack_pos++] = (Data){.word.i = val, .type = TYPE_INT};
 }
 
 static void push_f(VM *vm, double val) {
   if (vm->stack_pos >= MAX_STACK) {
-    VM_PANIC("stack overflow (max %d)", MAX_STACK);
+    VM_ERROR(vm, "stack overflow (max %d)", MAX_STACK);
   }
   vm->stack[vm->stack_pos++] = (Data){.word.f = val, .type = TYPE_FLOAT};
 }
 
 static Data pop(VM *vm) {
   if (vm->stack_pos <= 0) {
-    VM_PANIC("stack underflow");
+    VM_ERROR(vm, "stack underflow");
   }
   return vm->stack[--vm->stack_pos];
 }
 
 static Data peek(VM *vm) {
   if (vm->stack_pos <= 0) {
-    VM_PANIC("stack underflow on peek");
+    VM_ERROR(vm, "stack underflow on peek");
   }
 
   return vm->stack[vm->stack_pos - 1];
@@ -250,13 +262,13 @@ void vm_run(VM *vm) {
     case OP_INDUP:
       depth = inst.value.i;
       if (depth <= 0) {
-        VM_PANIC("invalid INDUP depth");
+        VM_ERROR(vm, "invalid INDUP depth");
       }
       if (depth > vm->stack_pos) {
-        VM_PANIC("stack underflow from INDUP");
+        VM_ERROR(vm, "stack underflow from INDUP");
       }
       if (depth + vm->stack_pos > MAX_STACK) {
-        VM_PANIC("stack overflow from INDUP");
+        VM_ERROR(vm, "stack overflow from INDUP");
       }
       vm->stack[vm->stack_pos] = vm->stack[vm->stack_pos - 1 - depth];
       vm->stack_pos++;
@@ -264,10 +276,10 @@ void vm_run(VM *vm) {
     case OP_INSWAP:
       depth = inst.value.i;
       if (depth <= 0) {
-        VM_PANIC("invalid INSWAP depth");
+        VM_ERROR(vm, "invalid INSWAP depth");
       }
       if (depth > vm->stack_pos) {
-        VM_PANIC("stack underflow from INSWAP");
+        VM_ERROR(vm, "stack underflow from INSWAP");
       }
       Data top = vm->stack[vm->stack_pos - 1];
       Data other = vm->stack[vm->stack_pos - 1 - depth];
@@ -278,7 +290,7 @@ void vm_run(VM *vm) {
       b = pop(vm);
       a = pop(vm);
       if (a.type != b.type) {
-        VM_PANIC("type mismatch");
+        VM_ERROR(vm, "type mismatch");
       }
       if (a.type == TYPE_INT) {
         push(vm, a.word.i + b.word.i);
@@ -290,7 +302,7 @@ void vm_run(VM *vm) {
       b = pop(vm);
       a = pop(vm);
       if (a.type != b.type) {
-        VM_PANIC("type mismatch");
+        VM_ERROR(vm, "type mismatch");
       }
       if (a.type == TYPE_INT) {
         push(vm, a.word.i - b.word.i);
@@ -302,7 +314,7 @@ void vm_run(VM *vm) {
       b = pop(vm);
       a = pop(vm);
       if (a.type != b.type) {
-        VM_PANIC("type mismatch");
+        VM_ERROR(vm, "type mismatch");
       }
       if (a.type == TYPE_INT) {
         push(vm, a.word.i * b.word.i);
@@ -314,16 +326,16 @@ void vm_run(VM *vm) {
       b = pop(vm);
       if (b.type == TYPE_INT) {
         if (b.word.i == 0) {
-          VM_PANIC("division by zero");
+          VM_ERROR(vm, "division by zero");
         }
       } else {
         if (b.word.f == 0.00) {
-          VM_PANIC("division by zero");
+          VM_ERROR(vm, "division by zero");
         }
       }
       a = pop(vm);
       if (a.type != b.type) {
-        VM_PANIC("type mismatch");
+        VM_ERROR(vm, "type mismatch");
       }
       if (a.type == TYPE_INT) {
         push(vm, a.word.i / b.word.i);
@@ -335,16 +347,16 @@ void vm_run(VM *vm) {
       b = pop(vm);
       if (b.type == TYPE_INT) {
         if (b.word.i == 0) {
-          VM_PANIC("modulo  by zero");
+          VM_ERROR(vm, "modulo  by zero");
         }
       } else {
         if (b.word.f == 0.00) {
-          VM_PANIC("modulo  by zero");
+          VM_ERROR(vm, "modulo  by zero");
         }
       }
       a = pop(vm);
       if (a.type != b.type) {
-        VM_PANIC("type mismatch");
+        VM_ERROR(vm, "type mismatch");
       }
       if (a.type == TYPE_INT) {
         push(vm, a.word.i % b.word.i);
@@ -356,7 +368,7 @@ void vm_run(VM *vm) {
       b = pop(vm);
       a = pop(vm);
       if (b.type != a.type) {
-        VM_PANIC("type mismatch");
+        VM_ERROR(vm, "type mismatch");
       }
       if (b.type == TYPE_INT) {
         push(vm, a.word.i == b.word.i);
@@ -368,7 +380,7 @@ void vm_run(VM *vm) {
       b = pop(vm);
       a = pop(vm);
       if (b.type != a.type) {
-        VM_PANIC("type mismatch");
+        VM_ERROR(vm, "type mismatch");
       }
       if (b.type == TYPE_INT) {
         push(vm, a.word.i != b.word.i);
@@ -380,7 +392,7 @@ void vm_run(VM *vm) {
       b = pop(vm);
       a = pop(vm);
       if (b.type != a.type) {
-        VM_PANIC("type mismatch");
+        VM_ERROR(vm, "type mismatch");
       }
       if (b.type == TYPE_INT) {
         push(vm, a.word.i < b.word.i);
@@ -392,7 +404,7 @@ void vm_run(VM *vm) {
       b = pop(vm);
       a = pop(vm);
       if (b.type != a.type) {
-        VM_PANIC("type mismatch");
+        VM_ERROR(vm, "type mismatch");
       }
       if (b.type == TYPE_INT) {
         push(vm, a.word.i <= b.word.i);
@@ -404,7 +416,7 @@ void vm_run(VM *vm) {
       b = pop(vm);
       a = pop(vm);
       if (b.type != a.type) {
-        VM_PANIC("type mismatch");
+        VM_ERROR(vm, "type mismatch");
       }
       if (b.type == TYPE_INT) {
         push(vm, a.word.i > b.word.i);
@@ -416,7 +428,7 @@ void vm_run(VM *vm) {
       b = pop(vm);
       a = pop(vm);
       if (b.type != a.type) {
-        VM_PANIC("type mismatch");
+        VM_ERROR(vm, "type mismatch");
       }
       if (b.type == TYPE_INT) {
         push(vm, a.word.i >= b.word.i);
@@ -446,50 +458,51 @@ void vm_run(VM *vm) {
       break;
     case OP_CALL:
       if (vm->rsp >= MAX_STACK) {
-        VM_PANIC("return stack overflow");
+        VM_ERROR(vm, "return stack overflow");
       }
-      vm->return_stack[vm->rsp++] = vm->ip + 1;
+      vm->return_stack[vm->rsp++] =
+          (CallFrame){.return_addr = (vm->ip + 1), .line = inst.line};
       vm->ip = inst.value.i;
       continue;
       break;
     case OP_RET:
       if (vm->rsp <= 0) {
-        VM_PANIC("return stack underflow");
+        VM_ERROR(vm, "return stack underflow");
       }
-      vm->ip = vm->return_stack[--vm->rsp];
+      vm->ip = vm->return_stack[--vm->rsp].return_addr;
       continue;
     case OP_MOV_IMM:
-      validate_reg(inst.reg_index);
+      validate_reg(vm, inst.reg_index);
       vm->registers[inst.reg_index] =
           (Data){.type = TYPE_INT, .word.i = inst.value.i};
       break;
     case OP_MOV_IMM_F:
-      validate_reg(inst.reg_index);
+      validate_reg(vm, inst.reg_index);
       vm->registers[inst.reg_index] =
           (Data){.type = TYPE_FLOAT, .word.f = inst.value.f};
       break;
     case OP_MOV_TOP:
-      validate_reg(inst.reg_index);
+      validate_reg(vm, inst.reg_index);
       vm->registers[inst.reg_index] = peek(vm);
       break;
     case OP_PUSH_REG:
-      validate_reg(inst.reg_index);
+      validate_reg(vm, inst.reg_index);
       if (vm->stack_pos >= MAX_STACK) {
-        VM_PANIC("stack overflow");
+        VM_ERROR(vm, "stack overflow");
       }
       vm->stack[vm->stack_pos++] = vm->registers[inst.reg_index];
       break;
     case OP_ALLOC:
       a = pop(vm);
       if (a.type == TYPE_PTR || a.type == TYPE_FLOAT) {
-        VM_PANIC("type mismatch from alloc");
+        VM_ERROR(vm, "type mismatch from alloc");
       }
       int64_t size = a.word.i;
       if (size <= 0) {
-        VM_PANIC("invalid size from alloc");
+        VM_ERROR(vm, "invalid size from alloc");
       }
       if (vm->stack_pos > MAX_STACK) {
-        VM_PANIC("stack overflow");
+        VM_ERROR(vm, "stack overflow");
       }
       i = 0;
       bool isAlloc = false;
@@ -515,26 +528,26 @@ void vm_run(VM *vm) {
         }
       }
       if (!isAlloc) {
-        VM_PANIC("insufficient heap memory");
+        VM_ERROR(vm, "insufficient heap memory");
       }
       break;
     case OP_DEALLOC:
       a = pop(vm);
       if (a.type == TYPE_FLOAT || a.type == TYPE_INT) {
-        VM_PANIC("type mismatch from dealloc");
+        VM_ERROR(vm, "type mismatch from dealloc");
       }
       int64_t address = a.word.i;
       if (address < 0) {
-        VM_PANIC("heap memory underflow");
+        VM_ERROR(vm, "heap memory underflow");
       }
       if (address >= HEAP_SIZE) {
-        VM_PANIC("heap memory overflow");
+        VM_ERROR(vm, "heap memory overflow");
       }
       if (!vm->heap_used[address]) {
-        VM_PANIC("you are free unallocated address from dealloc");
+        VM_ERROR(vm, "you are free unallocated address from dealloc");
       }
       if (vm->heap_block_used[address] == 0) {
-        VM_PANIC("wrong starting address from dealloc");
+        VM_ERROR(vm, "wrong starting address from dealloc");
       }
       int64_t allocSize = vm->heap_block_used[address];
       for (int i = address; i < address + allocSize; i++) {
@@ -545,14 +558,14 @@ void vm_run(VM *vm) {
     case OP_WRITE:
       a = pop(vm); // address
       if (a.type != TYPE_PTR) {
-        VM_PANIC("type mismatch from write");
+        VM_ERROR(vm, "type mismatch from write");
       }
       address = a.word.i;
       if (address < 0) {
-        VM_PANIC("heap memory underflow");
+        VM_ERROR(vm, "heap memory underflow");
       }
       if (address >= HEAP_SIZE) {
-        VM_PANIC("heap memory overflow");
+        VM_ERROR(vm, "heap memory overflow");
       }
       validateHeapAllocation(vm, address);
       vm->heap[address] = pop(vm);
@@ -560,17 +573,17 @@ void vm_run(VM *vm) {
     case OP_READ:
       a = pop(vm); // address
       if (a.type != TYPE_PTR) {
-        VM_PANIC("type mismatch from write");
+        VM_ERROR(vm, "type mismatch from write");
       }
       address = a.word.i;
       if (address < 0) {
-        VM_PANIC("heap memory underflow");
+        VM_ERROR(vm, "heap memory underflow");
       }
       if (address >= HEAP_SIZE) {
-        VM_PANIC("heap memory overflow");
+        VM_ERROR(vm, "heap memory overflow");
       }
       if (vm->stack_pos >= MAX_STACK) {
-        VM_PANIC("stack overflow");
+        VM_ERROR(vm, "stack overflow");
       }
       validateHeapAllocation(vm, address);
       vm->stack[vm->stack_pos] = vm->heap[address];
@@ -580,10 +593,10 @@ void vm_run(VM *vm) {
       const char *string_literal = inst.string_literal;
       int len = strlen(string_literal);
       if (vm->stack_pos >= MAX_STACK) {
-        VM_PANIC("stack overflow");
+        VM_ERROR(vm, "stack overflow");
       }
       if (vm->string_pool_pos + len + 1 > STRING_POOL_SIZE) {
-        VM_PANIC("string pool full");
+        VM_ERROR(vm, "string pool full");
       }
       memcpy(&vm->string_pool[vm->string_pool_pos], string_literal, len + 1);
       int64_t string_offset = vm->string_pool_pos;
@@ -595,32 +608,32 @@ void vm_run(VM *vm) {
     case OP_ITOF:
       a = pop(vm);
       if (a.type != TYPE_INT) {
-        VM_PANIC("type mismatch from ITOF");
+        VM_ERROR(vm, "type mismatch from ITOF");
       }
       push_f(vm, (double)a.word.i);
       break;
     case OP_FTOI:
       a = pop(vm);
       if (a.type != TYPE_FLOAT) {
-        VM_PANIC("type mismatch from FTOI");
+        VM_ERROR(vm, "type mismatch from FTOI");
       }
       push(vm, (int64_t)a.word.f);
       break;
     case OP_ITOC:
       a = pop(vm);
       if (a.type != TYPE_INT) {
-        VM_PANIC("type mismatch from ITOF");
+        VM_ERROR(vm, "type mismatch from ITOF");
       }
       int64_t value = a.word.i;
       if (value < 0 || value > 255) {
-        VM_PANIC("value out of char range");
+        VM_ERROR(vm, "value out of char range");
       }
       push(vm, value);
       break;
     case OP_TOI:
       a = pop(vm);
       if (a.type == TYPE_STR || a.type == TYPE_PTR) {
-        VM_PANIC("type mismatch from TOI");
+        VM_ERROR(vm, "type mismatch from TOI");
       } else if (a.type == TYPE_FLOAT) {
         push(vm, (int64_t)a.word.f);
       } else {
@@ -630,7 +643,7 @@ void vm_run(VM *vm) {
     case OP_TOF:
       a = pop(vm);
       if (a.type == TYPE_STR || a.type == TYPE_PTR) {
-        VM_PANIC("type mismatch from TOF");
+        VM_ERROR(vm, "type mismatch from TOF");
       } else if (a.type == TYPE_INT) {
         push_f(vm, (double)a.word.i);
       } else {
@@ -641,28 +654,28 @@ void vm_run(VM *vm) {
       if (inst.nativeEntry == PRINT_INT) {
         a = pop(vm);
         if (a.type != TYPE_INT) {
-          VM_PANIC("from op_native type mismatch");
+          VM_ERROR(vm, "from op_native type mismatch");
         }
         printf("%ld\n", a.word.i);
       } else if (inst.nativeEntry == PRINT_FLOAT) {
         a = pop(vm);
         if (a.type != TYPE_FLOAT) {
-          VM_PANIC("from op_native type mismatch");
+          VM_ERROR(vm, "from op_native type mismatch");
         }
         printf("%.7f\n", a.word.f);
       } else if (inst.nativeEntry == PRINT_CHAR) {
         a = pop(vm);
         if (a.type != TYPE_INT) {
-          VM_PANIC("from op_native type mismatch");
+          VM_ERROR(vm, "from op_native type mismatch");
         }
         if (a.word.i < 0 || a.word.i > 255) {
-          VM_PANIC("from native print char out of bound");
+          VM_ERROR(vm, "from native print char out of bound");
         }
         putchar(a.word.i);
       } else if (inst.nativeEntry == PRINT_STR) {
         a = pop(vm);
         if (a.type != TYPE_STR) {
-          VM_PANIC("from op_native type mismatch");
+          VM_ERROR(vm, "from op_native type mismatch");
         }
         const char *str = &vm->string_pool[a.word.i];
         printf("%s\n", str);
@@ -671,7 +684,7 @@ void vm_run(VM *vm) {
       } else if (inst.nativeEntry == EXIT_VM) {
         a = pop(vm);
         if (a.type != TYPE_INT) {
-          VM_PANIC("from op_native exit type mismatch");
+          VM_ERROR(vm, "from op_native exit type mismatch");
         }
         exit(a.word.i);
       }
@@ -679,7 +692,7 @@ void vm_run(VM *vm) {
     case OP_HALT:
       return;
     default:
-      VM_PANIC("unknown opcode %d at ip=%zu", inst.opcode, vm->ip);
+      VM_ERROR(vm, "unknown opcode %d at ip=%zu", inst.opcode, vm->ip);
       break;
     }
     vm->ip++;

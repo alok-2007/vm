@@ -60,3 +60,7 @@ print_char TYPE_STDOUT "B"
 print_str TYPE_STDOUT "hello world!\n"
 exit_vm EXIT 0
 main TYPE_STDOUT "1\n"
+type_error_in_call PANIC
+stack_overflow PANIC
+div_zero_in_call PANIC
+type_mismatch_nested PANIC

@@ -394,6 +394,37 @@ push STDOUT
 native print_int
 halt
 E
+cat << 'E' > type_error_in_call.vasm
+@imp "common.hasm"
+call 3
+halt
+push_f 1.5
+push 10
+add
+ret
+E
+cat << 'E' > stack_overflow.vasm
+call 0
+halt
+E
+cat << 'E' > div_zero_in_call.vasm
+call 3
+halt
+push 10
+push 0
+div
+ret
+E
+cat << 'E' > type_mismatch_nested.vasm
+call 2
+halt
+call 5
+ret
+push_f 1.5
+push 10
+mul
+ret
+E
 rm generate.sh
 EOF
 bash generate.sh

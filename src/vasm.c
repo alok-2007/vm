@@ -154,7 +154,9 @@ Inst *parse(TokenList list, size_t *out_count) {
                  items[i].line, items[i].text);
       }
       i++;
-      pro[proLen++] = (Inst){.opcode = OP_PUSH, .value.i = items[i].int_val};
+      pro[proLen++] = (Inst){.opcode = OP_PUSH,
+                             .value.i = items[i].int_val,
+                             .line = items[i].line};
       i++;
     } else if (strcmp(items[i].text, "push_f") == 0) {
       if (!((i + 1) < size && items[i + 1].type == TOK_FLOAT)) {
@@ -162,25 +164,28 @@ Inst *parse(TokenList list, size_t *out_count) {
                  items[i].line, items[i].text);
       }
       i++;
-      pro[proLen++] =
-          (Inst){.opcode = OP_PUSH_F, .value.f = items[i].float_val};
+      pro[proLen++] = (Inst){.opcode = OP_PUSH_F,
+                             .value.f = items[i].float_val,
+                             .line = items[i].line};
       i++;
     } else if (strcmp(items[i].text, "pop") == 0) {
       i++;
-      pro[proLen++] = (Inst){.opcode = OP_POP};
+      pro[proLen++] = (Inst){.opcode = OP_POP, .line = items[i].line};
     } else if (strcmp(items[i].text, "dup") == 0) {
       i++;
-      pro[proLen++] = (Inst){.opcode = OP_DUP};
+      pro[proLen++] = (Inst){.opcode = OP_DUP, .line = items[i].line};
     } else if (strcmp(items[i].text, "swap") == 0) {
       i++;
-      pro[proLen++] = (Inst){.opcode = OP_SWAP};
+      pro[proLen++] = (Inst){.opcode = OP_SWAP, .line = items[i].line};
     } else if (strcmp(items[i].text, "indup") == 0) {
       if (!((i + 1) < size && items[i + 1].type == TOK_INT)) {
         VM_PANIC("from parser syntax error line no : %d around %s",
                  items[i].line, items[i].text);
       }
       i++;
-      pro[proLen++] = (Inst){.opcode = OP_INDUP, .value.i = items[i].int_val};
+      pro[proLen++] = (Inst){.opcode = OP_INDUP,
+                             .value.i = items[i].int_val,
+                             .line = items[i].line};
       i++;
     } else if (strcmp(items[i].text, "inswap") == 0) {
       if (!((i + 1) < size && items[i + 1].type == TOK_INT)) {
@@ -188,49 +193,52 @@ Inst *parse(TokenList list, size_t *out_count) {
                  items[i].line, items[i].text);
       }
       i++;
-      pro[proLen++] = (Inst){.opcode = OP_INSWAP, .value.i = items[i].int_val};
+      pro[proLen++] = (Inst){.opcode = OP_INSWAP,
+                             .value.i = items[i].int_val,
+                             .line = items[i].line};
       i++;
     } else if (strcmp(items[i].text, "add") == 0) {
       i++;
-      pro[proLen++] = (Inst){.opcode = OP_ADD};
+      pro[proLen++] = (Inst){.opcode = OP_ADD, .line = items[i].line};
 
     } else if (strcmp(items[i].text, "sub") == 0) {
       i++;
-      pro[proLen++] = (Inst){.opcode = OP_SUB};
+      pro[proLen++] = (Inst){.opcode = OP_SUB, .line = items[i].line};
     } else if (strcmp(items[i].text, "mul") == 0) {
       i++;
-      pro[proLen++] = (Inst){.opcode = OP_MUL};
+      pro[proLen++] = (Inst){.opcode = OP_MUL, .line = items[i].line};
     } else if (strcmp(items[i].text, "div") == 0) {
       i++;
-      pro[proLen++] = (Inst){.opcode = OP_DIV};
+      pro[proLen++] = (Inst){.opcode = OP_DIV, .line = items[i].line};
     } else if (strcmp(items[i].text, "mod") == 0) {
       i++;
-      pro[proLen++] = (Inst){.opcode = OP_MOD};
+      pro[proLen++] = (Inst){.opcode = OP_MOD, .line = items[i].line};
     } else if (strcmp(items[i].text, "cmp_eq") == 0) {
       i++;
-      pro[proLen++] = (Inst){.opcode = OP_CMP_EQ};
+      pro[proLen++] = (Inst){.opcode = OP_CMP_EQ, .line = items[i].line};
     } else if (strcmp(items[i].text, "cmp_ne") == 0) {
       i++;
-      pro[proLen++] = (Inst){.opcode = OP_CMP_NE};
+      pro[proLen++] = (Inst){.opcode = OP_CMP_NE, .line = items[i].line};
     } else if (strcmp(items[i].text, "cmp_lt") == 0) {
       i++;
-      pro[proLen++] = (Inst){.opcode = OP_CMP_LT};
+      pro[proLen++] = (Inst){.opcode = OP_CMP_LT, .line = items[i].line};
     } else if (strcmp(items[i].text, "cmp_le") == 0) {
       i++;
-      pro[proLen++] = (Inst){.opcode = OP_CMP_LE};
+      pro[proLen++] = (Inst){.opcode = OP_CMP_LE, .line = items[i].line};
     } else if (strcmp(items[i].text, "cmp_gt") == 0) {
       i++;
-      pro[proLen++] = (Inst){.opcode = OP_CMP_GT};
+      pro[proLen++] = (Inst){.opcode = OP_CMP_GT, .line = items[i].line};
     } else if (strcmp(items[i].text, "cmp_ge") == 0) {
       i++;
-      pro[proLen++] = (Inst){.opcode = OP_CMP_GE};
+      pro[proLen++] = (Inst){.opcode = OP_CMP_GE, .line = items[i].line};
     } else if (strcmp(items[i].text, "jmp") == 0) {
       if (!((i + 1) < size && items[i + 1].type == TOK_INT)) {
         VM_PANIC("from parser syntax error line no : %d around %s",
                  items[i].line, items[i].text);
       }
       i++;
-      pro[proLen++] = (Inst){.opcode = OP_JMP, .value.i = items[i].int_val};
+      pro[proLen++] = (Inst){
+          .opcode = OP_JMP, .value.i = items[i].int_val, .line = items[i].line};
       i++;
     } else if (strcmp(items[i].text, "zjmp") == 0) {
       if (!((i + 1) < size && items[i + 1].type == TOK_INT)) {
@@ -238,7 +246,9 @@ Inst *parse(TokenList list, size_t *out_count) {
                  items[i].line, items[i].text);
       }
       i++;
-      pro[proLen++] = (Inst){.opcode = OP_ZJMP, .value.i = items[i].int_val};
+      pro[proLen++] = (Inst){.opcode = OP_ZJMP,
+                             .value.i = items[i].int_val,
+                             .line = items[i].line};
       i++;
     } else if (strcmp(items[i].text, "nzjmp") == 0) {
       if (!((i + 1) < size && items[i + 1].type == TOK_INT)) {
@@ -246,7 +256,9 @@ Inst *parse(TokenList list, size_t *out_count) {
                  items[i].line, items[i].text);
       }
       i++;
-      pro[proLen++] = (Inst){.opcode = OP_NZJMP, .value.i = items[i].int_val};
+      pro[proLen++] = (Inst){.opcode = OP_NZJMP,
+                             .value.i = items[i].int_val,
+                             .line = items[i].line};
       i++;
     } else if (strcmp(items[i].text, "call") == 0) {
       if (!((i + 1) < size && items[i + 1].type == TOK_INT)) {
@@ -254,11 +266,13 @@ Inst *parse(TokenList list, size_t *out_count) {
                  items[i].line, items[i].text);
       }
       i++;
-      pro[proLen++] = (Inst){.opcode = OP_CALL, .value.i = items[i].int_val};
+      pro[proLen++] = (Inst){.opcode = OP_CALL,
+                             .value.i = items[i].int_val,
+                             .line = items[i].line};
       i++;
     } else if (strcmp(items[i].text, "ret") == 0) {
       i++;
-      pro[proLen++] = (Inst){.opcode = OP_RET};
+      pro[proLen++] = (Inst){.opcode = OP_RET, .line = items[i].line};
     } else if (strcmp(items[i].text, "mov_imm") == 0) {
       if (!((i + 3) < size && items[i + 1].type == TOK_INT &&
             items[i + 2].type == TOK_COMMA && items[i + 3].type == TOK_INT)) {
@@ -267,7 +281,8 @@ Inst *parse(TokenList list, size_t *out_count) {
       }
       pro[proLen++] = (Inst){.opcode = OP_MOV_IMM,
                              .reg_index = items[i + 1].int_val,
-                             .value.i = items[i + 3].int_val};
+                             .value.i = items[i + 3].int_val,
+                             .line = items[i].line};
       i += 4;
     } else if (strcmp(items[i].text, "mov_imm_f") == 0) {
       if (!((i + 3) < size && items[i + 1].type == TOK_INT &&
@@ -277,7 +292,8 @@ Inst *parse(TokenList list, size_t *out_count) {
       }
       pro[proLen++] = (Inst){.opcode = OP_MOV_IMM_F,
                              .reg_index = items[i + 1].int_val,
-                             .value.f = items[i + 3].float_val};
+                             .value.f = items[i + 3].float_val,
+                             .line = items[i].line};
       i += 4;
     } else if (strcmp(items[i].text, "mov_top") == 0) {
       if (!((i + 1) < size && items[i + 1].type == TOK_INT)) {
@@ -285,8 +301,9 @@ Inst *parse(TokenList list, size_t *out_count) {
                  items[i].line, items[i].text);
       }
       i++;
-      pro[proLen++] =
-          (Inst){.opcode = OP_MOV_TOP, .reg_index = items[i].int_val};
+      pro[proLen++] = (Inst){.opcode = OP_MOV_TOP,
+                             .reg_index = items[i].int_val,
+                             .line = items[i].line};
       i++;
     } else if (strcmp(items[i].text, "push_reg") == 0) {
       if (!((i + 1) < size && items[i + 1].type == TOK_INT)) {
@@ -294,20 +311,21 @@ Inst *parse(TokenList list, size_t *out_count) {
                  items[i].line, items[i].text);
       }
       i++;
-      pro[proLen++] =
-          (Inst){.opcode = OP_PUSH_REG, .reg_index = items[i].int_val};
+      pro[proLen++] = (Inst){.opcode = OP_PUSH_REG,
+                             .reg_index = items[i].int_val,
+                             .line = items[i].line};
       i++;
     } else if (strcmp(items[i].text, "alloc") == 0) {
-      pro[proLen++] = (Inst){.opcode = OP_ALLOC};
+      pro[proLen++] = (Inst){.opcode = OP_ALLOC, .line = items[i].line};
       i++;
     } else if (strcmp(items[i].text, "dealloc") == 0) {
-      pro[proLen++] = (Inst){.opcode = OP_DEALLOC};
+      pro[proLen++] = (Inst){.opcode = OP_DEALLOC, .line = items[i].line};
       i++;
     } else if (strcmp(items[i].text, "write") == 0) {
-      pro[proLen++] = (Inst){.opcode = OP_WRITE};
+      pro[proLen++] = (Inst){.opcode = OP_WRITE, .line = items[i].line};
       i++;
     } else if (strcmp(items[i].text, "read") == 0) {
-      pro[proLen++] = (Inst){.opcode = OP_READ};
+      pro[proLen++] = (Inst){.opcode = OP_READ, .line = items[i].line};
       i++;
     } else if (strcmp(items[i].text, "push_str") == 0) {
       if (!((i + 1) < size && items[i + 1].type == TOK_STRING)) {
@@ -316,26 +334,27 @@ Inst *parse(TokenList list, size_t *out_count) {
       }
       i++;
       pro[proLen++] = (Inst){.opcode = OP_PUSH_STR,
-                             .string_literal = mystrdup(items[i].str_val)};
+                             .string_literal = mystrdup(items[i].str_val),
+                             .line = items[i].line};
       i++;
     } else if (strcmp(items[i].text, "itof") == 0) {
-      pro[proLen++] = (Inst){.opcode = OP_ITOF};
+      pro[proLen++] = (Inst){.opcode = OP_ITOF, .line = items[i].line};
       i++;
 
     } else if (strcmp(items[i].text, "ftoi") == 0) {
-      pro[proLen++] = (Inst){.opcode = OP_FTOI};
+      pro[proLen++] = (Inst){.opcode = OP_FTOI, .line = items[i].line};
       i++;
     } else if (strcmp(items[i].text, "itoc") == 0) {
-      pro[proLen++] = (Inst){.opcode = OP_ITOC};
+      pro[proLen++] = (Inst){.opcode = OP_ITOC, .line = items[i].line};
       i++;
     } else if (strcmp(items[i].text, "toi") == 0) {
-      pro[proLen++] = (Inst){.opcode = OP_TOI};
+      pro[proLen++] = (Inst){.opcode = OP_TOI, .line = items[i].line};
       i++;
     } else if (strcmp(items[i].text, "tof") == 0) {
-      pro[proLen++] = (Inst){.opcode = OP_TOF};
+      pro[proLen++] = (Inst){.opcode = OP_TOF, .line = items[i].line};
       i++;
     } else if (strcmp(items[i].text, "halt") == 0) {
-      pro[proLen++] = (Inst){.opcode = OP_HALT};
+      pro[proLen++] = (Inst){.opcode = OP_HALT, .line = items[i].line};
       i++;
     } else if (strcmp(items[i].text, "native") == 0) {
       i++;
@@ -346,22 +365,32 @@ Inst *parse(TokenList list, size_t *out_count) {
                  items[i - 1].line);
       }
       if (strcmp(items[i].text, "print_int") == 0) {
-        pro[proLen++] = (Inst){.opcode = OP_NATIVE, .nativeEntry = PRINT_INT};
+        pro[proLen++] = (Inst){.opcode = OP_NATIVE,
+                               .nativeEntry = PRINT_INT,
+                               .line = items[i].line};
         i++;
       } else if (strcmp(items[i].text, "print_float") == 0) {
-        pro[proLen++] = (Inst){.opcode = OP_NATIVE, .nativeEntry = PRINT_FLOAT};
+        pro[proLen++] = (Inst){.opcode = OP_NATIVE,
+                               .nativeEntry = PRINT_FLOAT,
+                               .line = items[i].line};
         i++;
       } else if (strcmp(items[i].text, "print_char") == 0) {
-        pro[proLen++] = (Inst){.opcode = OP_NATIVE, .nativeEntry = PRINT_CHAR};
+        pro[proLen++] = (Inst){.opcode = OP_NATIVE,
+                               .nativeEntry = PRINT_CHAR,
+                               .line = items[i].line};
         i++;
       } else if (strcmp(items[i].text, "print_str") == 0) {
-        pro[proLen++] = (Inst){.opcode = OP_NATIVE, .nativeEntry = PRINT_STR};
+        pro[proLen++] = (Inst){.opcode = OP_NATIVE,
+                               .nativeEntry = PRINT_STR,
+                               .line = items[i].line};
         i++;
       } else if (strcmp(items[i].text, "println") == 0) {
-        pro[proLen++] = (Inst){.opcode = OP_NATIVE, .nativeEntry = PRINTLN};
+        pro[proLen++] = (Inst){
+            .opcode = OP_NATIVE, .nativeEntry = PRINTLN, .line = items[i].line};
         i++;
       } else if (strcmp(items[i].text, "exit_vm") == 0) {
-        pro[proLen++] = (Inst){.opcode = OP_NATIVE, .nativeEntry = EXIT_VM};
+        pro[proLen++] = (Inst){
+            .opcode = OP_NATIVE, .nativeEntry = EXIT_VM, .line = items[i].line};
         i++;
       } else {
         VM_PANIC("unknown native function from parser");
@@ -544,7 +573,6 @@ char *preprocessor(const char *src, const char *base_dir,
       const char *callSrc = read_source_from_disk(absolute_file_path);
       const char *toSplice = preprocessor(callSrc, base_dir, import_stack,
                                           stack_depth, stack_capacity, map);
-      printf("splice : %s\n", toSplice);
       stack_depth--;
       appendWords(&modSource, &capacity, &wp, toSplice);
     } else {
