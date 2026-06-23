@@ -65,3 +65,4 @@ stack_overflow PANIC
 div_zero_in_call PANIC
 type_mismatch_nested PANIC
 load_fn_test TYPE_STDOUT "42\n"
+fizzbuzz TYPE_STDOUT "1\n2\nFizz\n4\nBuzz\nFizz\n7\n8\nFizz\nBuzz\n11\nFizz\n13\n14\nFizzBuzz\n16\n17\nFizz\n19\nBuzz\n"

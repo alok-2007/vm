@@ -1,0 +1,77 @@
+0  push 20
+1  push 1
+2  dup
+3  indup 2
+4  cmp_gt
+5  nzjmp 36
+6 dup 
+7  push 15
+8  mod
+9  zjmp 21
+10  dup
+11  push 3
+12  mod
+13  zjmp 24
+14  dup
+15 push 5
+16 mod
+17 zjmp 27
+18 dup
+19 native print_int
+20 jmp 30
+21  push_str "FizzBuzz"
+22 native print_str
+23 jmp 30
+24  push_str "Fizz"
+25  native print_str
+26  jmp 30
+27 push_str "Buzz"
+28  native print_str
+29 jmp 30
+30  dup
+31 push 1
+32 add
+33 swap
+34 pop
+35 jmp 2
+36 halt
+
+///
+
+push 20
+push 1
+dup
+indup 2
+cmp_gt
+ nzjmp 36
+dup 
+ push 15
+ mod
+ zjmp 21
+  dup
+  push 3
+  mod
+  zjmp 24
+  dup
+ push 5
+ mod
+ zjmp 27
+ dup
+ native print_int
+ jmp 30
+  push_str "FizzBuzz"
+ native print_str
+ jmp 30
+  push_str "Fizz"
+  native print_str
+  jmp 30
+ push_str "Buzz"
+  native print_str
+ jmp 30
+  dup
+ push 1
+ add
+ swap
+ pop
+jmp 2
+halt

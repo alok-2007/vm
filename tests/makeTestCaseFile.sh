@@ -433,6 +433,45 @@ call_native
 native print_int
 halt
 E
+cat << 'E' > fizzbuzz.vasm
+push 20
+push 1
+dup
+indup 2
+cmp_gt
+nzjmp 36
+dup 
+push 15
+mod
+ zjmp 21
+  dup
+  push 3
+  mod
+  zjmp 24
+  dup
+ push 5
+ mod
+ zjmp 27
+ dup
+ native print_int
+ jmp 30
+  push_str "FizzBuzz"
+ native print_str
+ jmp 30
+  push_str "Fizz"
+  native print_str
+  jmp 30
+ push_str "Buzz"
+  native print_str
+ jmp 30
+  dup
+ push 1
+ add
+ swap
+ pop
+jmp 2
+halt
+E
 rm generate.sh
 EOF
 bash generate.sh
