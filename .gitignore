@@ -1,16 +1,19 @@
-# Object files
+# Executables & Binaries
+/vm
+/test
+/test_runner
 *.o
-
-# Executables
-./vm
-./test
-
-# Other build files
 *.out
 *.a
-# test case folder 
-tests_vasm/
-tasms/
+*.so
 
-# tem
-./draft.txt
+# Generated VM files
+*.vbc
+
+# Test folders containing generated/raw test fixtures
+tests/tests_vasm/
+tests/tasms/
+/add.vbc
+
+# Temporary drafts
+draft.txt

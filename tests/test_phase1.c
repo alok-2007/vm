@@ -256,7 +256,7 @@ void serializer(const char *dirSrc) {
       VM_PANIC("parse didn't return program");
     }
     char absolute_tasm_path[PATH_MAX];
-    snprintf(absolute_tasm_path, sizeof(absolute_tasm_path), "%s/%s.tasm",
+    snprintf(absolute_tasm_path, sizeof(absolute_tasm_path), "%s/%s.vbc",
              "tests/tasms", get_filename(entry->d_name));
     bool serialize_res =
         serialize_program(program, program_size, absolute_tasm_path);
