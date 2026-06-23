@@ -35,7 +35,6 @@ int main(int argc, char *argv[]) {
     char *sourceFile = argv[2];
     size_t program_size = 0;
     Inst *program = assemble(sourceFile, &program_size);
-    printf("after a\n");
     char *targetFile = argv[4];
     bool result = serialize_program(program, program_size, targetFile);
     if (!result) {
